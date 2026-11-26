@@ -67,3 +67,19 @@ tasks.register('fetchDnmsMip') {
  }
 }
 tasks.named('compileJava') { dependsOn 'fetchDnmsMip' }
+
+tasks.register('fetchDnmsLearning') {
+ def target=layout.buildDirectory.file('upstream/org/nagineco/doppel/NaoActionLearning.java')
+ inputs.property('blobHash','e6b5b327412c26afbf6f2dcb02690e9693f9329b')
+ outputs.file(target)
+ doLast {
+  def c=new URI('https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/main/src/main/java/org/nagineco/doppel/NaoActionLearning.java').toURL().openConnection()
+  c.connectTimeout=15000;c.readTimeout=15000
+  byte[] bytes=c.inputStream.withCloseable { it.readAllBytes() }
+  def digest=java.security.MessageDigest.getInstance('SHA-1')
+  digest.update(("blob "+bytes.length+"\u0000").getBytes('UTF-8'))
+  if(digest.digest(bytes).encodeHex().toString()!='e6b5b327412c26afbf6f2dcb02690e9693f9329b')throw new GradleException('Upstream learning changed')
+  def file=target.get().asFile;file.parentFile.mkdirs();file.bytes=bytes
+ }
+}
+tasks.named('compileJava') { dependsOn 'fetchDnmsLearning' }
