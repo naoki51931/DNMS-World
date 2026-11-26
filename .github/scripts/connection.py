@@ -10,11 +10,15 @@ def req(path='/api/v1/npcs', body=None, headers=auth, status=200):
         code,data=e.code,e.read()
     assert code==status,(path,code,status,data)
     return json.loads(data)
-world_id=req('/api/v1/world')['worldId']
+identity=req('/api/v1/world')
+world_id=identity['worldId']
 base_auth=dict(auth)
 req(headers=base_auth,status=409)
 req(headers={**base_auth,'X-DNMS-World':str(uuid.UUID(int=0))},status=409)
 auth['X-DNMS-World']=world_id
+req(status=409)
+req(headers={**auth,'X-DNMS-Epoch':str(uuid.UUID(int=0))},status=409)
+auth['X-DNMS-Epoch']=identity['epoch']
 def spawn(i, status=201, pos=None):
     ident=str(uuid.UUID(int=i+1000))
     x,y,z=pos or ((i%16)*12+4,1,(i//16)*12+4)
