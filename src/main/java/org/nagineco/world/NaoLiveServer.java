@@ -19,6 +19,7 @@ public final class NaoLiveServer {
  private static MemoryDecision decision(DnmsMemoryAdapter memory)throws java.io.IOException{
   var events=new java.util.ArrayList<SharedMemorySearch.Event>();
   for(String direction:java.util.List.of("EAST","WEST","NORTH","SOUTH"))events.addAll(memory.search(direction,50));
+  events.addAll(memory.search("SAFETY AFRAID",100));
   return new MemoryDecision(events);
  }
  private void integrate()throws java.io.IOException{memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
@@ -114,7 +115,16 @@ public final class NaoLiveServer {
   }
   return out.append("]}").toString();
  }
+ synchronized boolean damage(int slot,double amount)throws java.io.IOException{
+  if(slot<0||slot>=sim.states().size()||!Double.isFinite(amount)||amount<=0||sim.health(slot)<=0)return false;
+  if(memory!=null)memory.recordDamage(sim.ticks(),sim.states().get(slot));
+  sim.damage(slot,amount);return true;
+ }
  synchronized boolean command(String cmd){
+  if(cmd.startsWith("damage:")){
+   String[] parts=cmd.split(":",-1);if(parts.length!=3)return false;
+   try{return damage(Integer.parseInt(parts[1]),Double.parseDouble(parts[2]));}catch(IllegalArgumentException|java.io.IOException e){return false;}
+  }
   if(cmd.startsWith("rewind:"))return rewind(cmd.substring(7));
   if(cmd.equals("checkpoint")){try{checkpoint();return true;}catch(java.io.IOException e){return false;}}
   if(cmd.equals("mip:on")){mipEnabled=true;return true;}
