@@ -1,7 +1,16 @@
 # DNMS World
 
+**[概要](#dnms-world) ｜ [インストール方法](#installation) ｜ [開発ロードマップ](#roadmap)**
+
+| [Windows](#install-windows) | [Mac](#install-mac) | [Android](#install-android) | [iPhone](#install-iphone) |
+| :---: | :---: | :---: | :---: |
+
+[▶ DNMS Worldを起動（公開後）](https://naoki51931.github.io/DNMS-World/)
+
 Minecraft不要の独立型ブロック世界シミュレーター。既存DNMS Fabric 1.21.1版を維持し、共通AIを段階的に接続する。
 
+
+<a name="installation"></a>
 
 ## インストール方法（Windows / Mac / Android / iPhone）
 
@@ -16,22 +25,30 @@ GitHub Pagesの公開成功後に利用できます。PWA版は無料の静的3D
 | Android | Chrome | ホーム画面 |
 | iPhone | Safari | ホーム画面 |
 
+<a name="install-windows"></a>
+
 ### Windows
 1. ChromeまたはEdgeで公開URLを開く。
 2. アドレスバーのインストールアイコンを選ぶ。Chromeではメニューの「キャスト、保存、共有」→「ページをアプリとしてインストール」からも操作できる。
 3. Edgeではメニューの「アプリ」→「このサイトをアプリとしてインストール」を利用できる（バージョンにより位置は異なる）。
 4. インストールを確定し、追加されたDNMS Worldを起動する。
 
+<a name="install-mac"></a>
+
 ### Mac
 1. Chromeで公開URLを開き、Windowsと同様にアプリとしてインストールする。
 2. Safariを使う場合はmacOS Sonoma 14以降で公開URLを開き、「ファイル」→「Dockに追加」を選ぶ。
 3. 名前をDNMS Worldとして追加し、Dockまたはアプリ一覧から起動する。
+
+<a name="install-android"></a>
 
 ### Android
 1. Chromeで公開URLを開く。
 2. 右上のメニュー（⋮）から「ホーム画面に追加」または「アプリをインストール」を選ぶ。
 3. インストールを確定し、ホーム画面のDNMS Worldを起動する。
 4. インストール項目がなくショートカット追加のみの場合は、ブラウザ起動になることがある。
+
+<a name="install-iphone"></a>
 
 ### iPhone
 1. Safariで公開URLを開く。
