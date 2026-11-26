@@ -24,6 +24,10 @@ public final class DnmsMemoryAdapter {
   String line=String.format(Locale.ROOT,"- day=%d tick=%d position=(%d,%d,%d) action=%s emotion=NEUTRAL reason=%s%n",tick/24000+1,tick%24000,p.x(),p.y(),p.z(),action,reason);
   Files.writeString(journal(after.slot()),line,StandardOpenOption.APPEND);
  }
+ public void recordDamage(long tick,NaoSimulation.State state)throws IOException{
+  var p=state.position();
+  Files.writeString(journal(state.slot()),String.format(Locale.ROOT,"- day=%d tick=%d position=(%d,%d,%d) action=STAY emotion=AFRAID reason=SAFETY%n",tick/24000+1,tick%24000,p.x(),p.y(),p.z()),StandardOpenOption.APPEND);
+ }
  public String integrate()throws IOException{String result=MemoryIntegrationPatch.integrate(dir);search=null;return result;}
  public List<SharedMemorySearch.Event> search(String query,int limit)throws IOException{if(search==null)search=new SharedMemorySearch(dir.resolve("nao_integrated_memory.md"));return search.search(query,limit);}
  public static int clockTick(int hour,int minute){
