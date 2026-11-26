@@ -20,7 +20,7 @@ public final class NaoSimulation implements DnmsWorldApi {
   final EnumMap<Action,RewardEstimate> rewards=new EnumMap<>(Action.class);
   final NaoActionLearning learning=new NaoActionLearning();
   PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
-  Nao(int slot){this.slot=slot;id=UUID.randomUUID();anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
+  Nao(int slot){this.slot=slot;id=WorldIdentityPolicy.issue();anchor=new Pos(WorldIdentityPolicy.anchor(slot).x(),WorldIdentityPolicy.anchor(slot).y(),WorldIdentityPolicy.anchor(slot).z());position=anchor;}
  }
  private MemoryDecision memoryDecision=new MemoryDecision(List.of());
  public void setMemoryDecision(MemoryDecision decision){memoryDecision=Objects.requireNonNull(decision);}
@@ -62,7 +62,7 @@ public final class NaoSimulation implements DnmsWorldApi {
   for(int i=0;i<count;i++)addNao();
  }
  // DNMS-LEGACY: local identity allocation; keep world plot creation when DNMS becomes authoritative.
- public boolean addNao(){return addNao(UUID.randomUUID());}
+ public boolean addNao(){return addNao(WorldIdentityPolicy.issue());}
  private boolean addNao(UUID id){
    if(naos.size()>=256)return false;
    var n=new Nao(naos.size());n.id=id;naos.add(n);
@@ -75,7 +75,7 @@ public final class NaoSimulation implements DnmsWorldApi {
   if(naos.stream().anyMatch(n->n.id.equals(id)))return SpawnResult.ALREADY_EXISTS;
   int slot=naos.size();if(slot>=256)return SpawnResult.CAPACITY;
   // The current flat-world fixture supports only the next plot anchor.
-  if(!position.equals(new Position((slot%16)*12+4,1,(slot/16)*12+4)))return SpawnResult.INVALID_POSITION;
+  if(!position.equals(WorldIdentityPolicy.anchor(slot)))return SpawnResult.INVALID_POSITION;
   addNao(id);return SpawnResult.CREATED;
  }
  @Override public List<Npc> npcs(){return naos.stream().map(n->new Npc(n.id,new Position(n.position.x(),n.position.y(),n.position.z()),n.health)).toList();}
@@ -181,7 +181,7 @@ public final class NaoSimulation implements DnmsWorldApi {
    int count=in.readInt();if(count<0||count>256||(version<8&&count==0))throw new java.io.IOException("Invalid population");
    var sim=new NaoSimulation(count);if(version>=3)sim.rewardEnabled=in.readBoolean();sim.world.read(in);sim.work.read(in);
    var ids=new HashSet<UUID>();
-   for(var n:sim.naos){if(version>=8)n.id=new UUID(in.readLong(),in.readLong());else n.id=UUID.nameUUIDFromBytes(("dnms-world-legacy-slot:"+n.slot).getBytes(java.nio.charset.StandardCharsets.UTF_8));if(!ids.add(n.id))throw new java.io.IOException("Duplicate NPC identity");n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
+   for(var n:sim.naos){if(version>=8)n.id=new UUID(in.readLong(),in.readLong());else n.id=WorldIdentityPolicy.legacySlot(n.slot);if(!ids.add(n.id))throw new java.io.IOException("Duplicate NPC identity");n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
     if(version>=4){n.health=in.readDouble();String action=in.readUTF();n.lastAction=action.isEmpty()?null:Action.valueOf(action);n.lastActionTick=in.readLong();if(!Double.isFinite(n.health)||n.health<0||n.health>20||n.lastActionTick< -1||n.lastActionTick>sim.ticks()||(n.lastAction==null)!=(n.lastActionTick==-1))throw new java.io.IOException("Invalid health state");}
     if(version>=5){n.satiety=in.readInt();n.food=in.readInt();if(n.satiety<0||n.satiety>24000||n.food<0||n.food>1000)throw new java.io.IOException("Invalid nutrition");}
     if(version>=6){n.nextHarvest=in.readLong();if(n.nextHarvest<0)throw new java.io.IOException("Invalid harvest time");}
