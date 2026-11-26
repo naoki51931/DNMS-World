@@ -37,9 +37,9 @@ async function start(){
  const keys=new Set<string>();const allowed=['KeyW','KeyA','KeyS','KeyD','Space'];
  addEventListener('keydown',e=>{if(allowed.includes(e.code)){e.preventDefault();keys.add(e.code)}});
  addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>keys.clear());
- const pad=document.createElement('div');pad.style.cssText='position:fixed;bottom:20px;left:20px;display:flex;gap:8px;touch-action:none';
+ const pad=document.createElement('div');pad.style.cssText='position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:max(8px,env(safe-area-inset-left));display:flex;flex-wrap:wrap;max-width:95vw;gap:4px;touch-action:none';
  for(const [label,key] of [['↑','KeyW'],['←','KeyA'],['↓','KeyS'],['→','KeyD'],['Jump','Space']]){
- const button=document.createElement('button');button.textContent=label;button.style.cssText='padding:16px;font-size:20px;touch-action:none';
+ const button=document.createElement('button');button.textContent=label;button.style.cssText='padding:12px;min-width:44px;min-height:44px;font-size:18px;touch-action:none';
  button.onpointerdown=e=>{button.setPointerCapture(e.pointerId);keys.add(key)};
  button.onpointerup=button.onpointercancel=button.onlostpointercapture=()=>keys.delete(key);pad.appendChild(button);
  }document.body.appendChild(pad);
@@ -49,3 +49,7 @@ async function start(){
  renderer.setAnimationLoop(()=>{const dt=clock.getDelta(); const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3(-forward.z,0,forward.x);const move=forward.multiplyScalar(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))).addScaledVector(right,Number(keys.has('KeyD'))-Number(keys.has('KeyA'))).normalize().multiplyScalar(4);step(body,solid,move.x,move.z,keys.has('Space'),dt);avatar.position.set(body.x,body.y+.9,body.z);controls.update();renderer.render(scene,camera)});
 }
 start().catch(e=>{status.textContent='起動失敗: '+String(e)});
+
+if(import.meta.env.PROD && 'serviceWorker' in navigator && window.isSecureContext){
+ window.addEventListener('load',()=>navigator.serviceWorker.register(import.meta.env.BASE_URL+'sw.js').catch(console.warn));
+}
