@@ -96,3 +96,9 @@ tasks.register('fetchDnmsLearning') {
  }
 }
 tasks.named('compileJava') { dependsOn 'fetchDnmsLearning' }
+
+// Long tests are opt-in to keep routine CI bounded.
+tasks.named('test') {
+ systemProperty 'dnms.endurance', providers.gradleProperty('dnmsEndurance').orElse('false').get()
+ inputs.property('dnmsEndurance', providers.gradleProperty('dnmsEndurance').orElse('false'))
+}
