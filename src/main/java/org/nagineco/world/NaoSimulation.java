@@ -6,12 +6,13 @@ import org.nagineco.doppel.core.*;
 import org.nagineco.world.WorldAccess.*;
 /** Deterministic flat-world integration fixture; one independent plot per NPC. */
 public final class NaoSimulation {
- public enum Goal { COLLECT, BUILD, REST }
+ public enum Goal { COLLECT, BUILD, REST, EAT }
  public record State(int slot,Pos position,Goal goal,int collected,int built,long attempts){}
  private static final class Nao {
   final int slot; final Pos anchor; Pos position; int collected,built; long attempts; double travel;
   final ArrayDeque<Pos> route=new ArrayDeque<>();
   Pos routeTarget; long routeRevision=-1; double routeCaution; MemoryDecision routeMemory;
+  int satiety=24000,food=3;
   double health=20; Action lastAction; long lastActionTick=-1;
   final EnumMap<Action,RewardEstimate> rewards=new EnumMap<>(Action.class);
   final NaoActionLearning learning=new NaoActionLearning();
@@ -27,6 +28,12 @@ public final class NaoSimulation {
  public boolean rewardEnabled(){return rewardEnabled;}
  public void setRewardEnabled(boolean enabled){rewardEnabled=enabled;}
  public double rewardPreference(int slot,Action action){return naos.get(slot).rewards.getOrDefault(action,new RewardEstimate()).preference();}
+ public int satiety(int slot){return naos.get(slot).satiety;}
+ public int food(int slot){return naos.get(slot).food;}
+ public void supplyFood(int slot,int amount){
+  if(amount<0||amount>1000)throw new IllegalArgumentException("food");
+  var n=naos.get(slot);n.food=Math.min(1000,n.food+amount);
+ }
  public double health(int slot){return naos.get(slot).health;}
  public void damage(int slot,double amount){
   if(!Double.isFinite(amount)||amount<0)throw new IllegalArgumentException("damage");
@@ -55,7 +62,7 @@ public final class NaoSimulation {
    return true;
  }
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
- private Goal goal(Nao n){return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
+ private Goal goal(Nao n){if(n.health>0&&n.satiety<=12000&&n.food>0)return Goal.EAT;return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
  private void observe(Nao n,Action action,boolean success){
   n.lastAction=action;n.lastActionTick=ticks();
   if(rewardEnabled&&(action==Action.COLLECT||action==Action.EXPLORE)){
@@ -88,6 +95,9 @@ public final class NaoSimulation {
  public void tick(){
   for(var n:naos){
    if(n.health<=0)continue;
+   n.satiety=Math.max(0,n.satiety-1);
+   if(goal(n)==Goal.EAT){n.food--;n.satiety=Math.min(24000,n.satiety+12000);continue;}
+   if(n.satiety==0&&ticks()%200==0){n.health=Math.max(0,n.health-1);if(n.health==0)continue;}
    if(goal(n)==Goal.COLLECT){
     var staging=new Pos(n.anchor.x()+3,1,n.anchor.z());
     if(!n.position.equals(staging)){move(n,staging);continue;}
@@ -114,8 +124,8 @@ public final class NaoSimulation {
   var tmp=java.nio.file.Files.createTempFile(path.getParent(),"dnms-",".tmp");
   try{
    try(var out=new java.io.DataOutputStream(new java.io.BufferedOutputStream(java.nio.file.Files.newOutputStream(tmp)))){
-    out.writeUTF("DNMS-WORLD-4");out.writeInt(naos.size());out.writeBoolean(rewardEnabled);world.write(out);work.write(out);
-    for(var n:naos){out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);out.writeDouble(n.health);out.writeUTF(n.lastAction==null?"":n.lastAction.name());out.writeLong(n.lastActionTick);
+    out.writeUTF("DNMS-WORLD-5");out.writeInt(naos.size());out.writeBoolean(rewardEnabled);world.write(out);work.write(out);
+    for(var n:naos){out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);out.writeDouble(n.health);out.writeUTF(n.lastAction==null?"":n.lastAction.name());out.writeLong(n.lastActionTick);out.writeInt(n.satiety);out.writeInt(n.food);
      var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);for(var action:Action.values()){out.writeInt(n.learning.attempts().getOrDefault(action,0));out.writeInt(n.learning.successes().getOrDefault(action,0));var reward=n.rewards.getOrDefault(action,new RewardEstimate());out.writeInt(reward.count());out.writeDouble(reward.mean());}}
    }
    java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -128,12 +138,14 @@ public final class NaoSimulation {
     case "DNMS-WORLD-2" -> 2;
     case "DNMS-WORLD-3" -> 3;
     case "DNMS-WORLD-4" -> 4;
+    case "DNMS-WORLD-5" -> 5;
     default -> throw new java.io.IOException("Unknown checkpoint format");
    };
    int count=in.readInt();if(count<1||count>256)throw new java.io.IOException("Invalid population");
    var sim=new NaoSimulation(count);if(version>=3)sim.rewardEnabled=in.readBoolean();sim.world.read(in);sim.work.read(in);
    for(var n:sim.naos){n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
     if(version>=4){n.health=in.readDouble();String action=in.readUTF();n.lastAction=action.isEmpty()?null:Action.valueOf(action);n.lastActionTick=in.readLong();if(!Double.isFinite(n.health)||n.health<0||n.health>20||n.lastActionTick< -1||n.lastActionTick>sim.ticks()||(n.lastAction==null)!=(n.lastActionTick==-1))throw new java.io.IOException("Invalid health state");}
+    if(version>=5){n.satiety=in.readInt();n.food=in.readInt();if(n.satiety<0||n.satiety>24000||n.food<0||n.food>1000)throw new java.io.IOException("Invalid nutrition");}
     if(n.collected<0||n.collected>8||n.built<0||n.built>n.collected||n.attempts<0||!Double.isFinite(n.travel)||n.travel<0||n.travel>=1)throw new java.io.IOException("Invalid NPC state");
     n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());
     if(version>=2){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());if(version>=3){var reward=new RewardEstimate();reward.restore(in.readInt(),in.readDouble());n.rewards.put(action,reward);}}n.learning.restore(a,b);}}
