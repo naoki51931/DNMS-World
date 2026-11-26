@@ -108,6 +108,7 @@ public final class NaoLiveServer {
   }
   return out.append(']').toString();
  }
+ /* DNMS-LEGACY: moved to DnmsWorldHttpApi.snapshot.
  synchronized String apiNpcs(){
   var out=new StringBuilder("{\"tick\":").append(sim.worldTick()).append(",\"npcs\":[");
   boolean first=true;
@@ -117,6 +118,8 @@ public final class NaoLiveServer {
   }
   return out.append("]}").toString();
  }
+ */
+ synchronized String apiNpcs(){return org.nagineco.doppel.core.DnmsWorldHttpApi.snapshot(sim);}
  synchronized DnmsWorldApi.SpawnResult apiSpawn(UUID id,DnmsWorldApi.Position pos)throws java.io.IOException{
   var list=sim.npcs();
   if(list.stream().anyMatch(n->n.id().equals(id)))return DnmsWorldApi.SpawnResult.ALREADY_EXISTS;
@@ -126,6 +129,7 @@ public final class NaoLiveServer {
   if(memory!=null)memory.initialize(slot+1);
   return sim.spawnNpc(id,pos);
  }
+ /* DNMS-LEGACY: moved to DnmsWorldHttpApi.register.
  void registerWorldApi(HttpServer server,String token){
   if(token==null||token.length()<32)return;
   server.createContext("/api/v1/npcs",e->{
@@ -146,6 +150,8 @@ public final class NaoLiveServer {
    }catch(IllegalArgumentException ex){json(e,400,"{}");}catch(java.io.IOException ex){json(e,500,"{}");}
   });
  }
+ */
+ void registerWorldApi(HttpServer server,String token){org.nagineco.doppel.core.DnmsWorldHttpApi.register(server,token,this::apiNpcs,this::apiSpawn);}
  synchronized String snapshot(){
   var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"rewardEnabled\":").append(sim.rewardEnabled()).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"skillMode\":\"").append(skillMode).append("\",\"skillSource\":").append(skillSource).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
   boolean first=true;
