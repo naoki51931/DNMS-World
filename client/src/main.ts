@@ -21,8 +21,9 @@ async function start(){
   const mesh=new THREE.InstancedMesh(geometry,new THREE.MeshStandardMaterial({color}),group.length);
   group.forEach(([x,y,z],i)=>mesh.setMatrixAt(i,matrix.makeTranslation(x,y,z)));mesh.instanceMatrix.needsUpdate=true;scene.add(mesh);
  }
- const occupied=new Set(blocks.map(([x,y,z])=>x+','+y+','+z'));
- const solid=(x:number,y:number,z:number)=>x<0||z<0||x>=32||z>=32||y<0||occupied.has(x+','+y+','+z');
+ const blockKey=(x:number,y:number,z:number)=>[x,y,z].join(',');
+ const occupied=new Set(blocks.map(([x,y,z])=>blockKey(x,y,z)));
+ const solid=(x:number,y:number,z:number)=>x<0||z<0||x>=32||z>=32||y<0||occupied.has(blockKey(x,y,z));
  const spawn=Math.max(...blocks.filter(b=>b[0]===16&&b[2]===16).map(b=>b[1]))+.5;
  const body:Body={x:16,y:spawn,z:16,vy:0,grounded:false};
  const avatar=new THREE.Mesh(new THREE.BoxGeometry(.6,1.8,.6),new THREE.MeshStandardMaterial({color:0xe8a4bb}));scene.add(avatar);
