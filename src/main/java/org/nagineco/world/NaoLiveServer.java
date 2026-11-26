@@ -111,7 +111,7 @@ public final class NaoLiveServer {
   boolean first=true;
   for(var n:sim.states()){
    if(!first)out.append(',');first=false;var p=n.position();
-   out.append('[').append(n.slot()).append(',').append(p.x()).append(',').append(p.y()).append(',').append(p.z()).append(",\"").append(n.goal()).append("\",").append(n.collected()).append(',').append(n.built()).append(']');
+   out.append('[').append(n.slot()).append(',').append(p.x()).append(',').append(p.y()).append(',').append(p.z()).append(",\"").append(n.goal()).append("\",").append(n.collected()).append(',').append(n.built()).append(',').append(sim.health(n.slot())).append(',').append(sim.satiety(n.slot())).append(',').append(sim.food(n.slot())).append(',').append(sim.fatigue(n.slot())).append(',').append(sim.sleeping(n.slot())).append(']');
   }
   return out.append("]}").toString();
  }
