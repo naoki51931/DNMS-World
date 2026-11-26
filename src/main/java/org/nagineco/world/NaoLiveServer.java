@@ -89,6 +89,16 @@ public final class NaoLiveServer {
  synchronized void advance(){if(running)for(int i=0;i<speed&&running;i++){var before=memory==null?null:sim.states();sim.tick();
  if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
  if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
+ synchronized String searchMemory(String query)throws java.io.IOException{
+  if(query.length()>256)throw new IllegalArgumentException("query too long");
+  var out=new StringBuilder("[");
+  if(memory!=null)for(var event:memory.search(query,50)){
+   if(out.length()>1)out.append(',');
+   out.append("{\"nao\":").append(event.nao()).append(",\"day\":").append(event.day()).append(",\"tick\":").append(event.tick())
+    .append(",\"action\":\"").append(event.action()).append("\",\"emotion\":\"").append(event.emotion()).append("\",\"reason\":\"").append(event.reason()).append("\"}");
+  }
+  return out.append(']').toString();
+ }
  synchronized String snapshot(){
   var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"rewardEnabled\":").append(sim.rewardEnabled()).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"skillMode\":\"").append(skillMode).append("\",\"skillSource\":").append(skillSource).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
   boolean first=true;
@@ -121,6 +131,14 @@ public final class NaoLiveServer {
   app.configureSave(Path.of("world-data/latest.bin"));
   var server=HttpServer.create(new InetSocketAddress("127.0.0.1",8080),0);
   server.createContext("/api/state",e->{if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}json(e,200,app.snapshot());});
+  server.createContext("/api/memory/search",e->{
+   if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}
+   try{
+    String raw=e.getRequestURI().getRawQuery();
+    if(raw==null||!raw.startsWith("q=")||raw.length()>4096){json(e,400,"{}");return;}
+    json(e,200,app.searchMemory(URLDecoder.decode(raw.substring(2),StandardCharsets.UTF_8)));
+   }catch(IllegalArgumentException ex){json(e,400,"{}");}catch(java.io.IOException ex){json(e,500,"{}");}
+  });
   server.createContext("/api/checkpoints",e->{if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}json(e,200,app.checkpoints());});
   server.createContext("/api/control",e->{if(!e.getRequestMethod().equals("POST")||!"dnms-local".equals(e.getRequestHeaders().getFirst("X-DNMS-Control"))){json(e,403,"{}");return;}var cmd=new String(e.getRequestBody().readNBytes(128),StandardCharsets.UTF_8);json(e,app.command(cmd)?200:400,app.snapshot());});
   server.createContext("/",e->{if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}
