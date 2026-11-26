@@ -19,6 +19,10 @@
 
 DNMS本体の DnmsWorldApi を再利用し、NaoSimulation が生成・一覧・時刻取得を実装。V8保存形式でUUIDを永続化し、旧V1〜V7にはスロット由来の暫定UUIDを割り当てる。生成座標は現状、次の区画の基点に限定。WorldApiTest を追加したがCI未確認。Minecraft側Adapter、外部接続、認証、記憶転送は未実装。旧UUIDはDNMS発行IDではなく、世界間の同一性を保証しない。
 
+## 外部World API
+
+環境変数 DNMS_WORLD_TOKEN（32文字以上）を設定すると、127.0.0.1:8080/api/v1/npcs が有効になる。Authorization: Bearer <token> が必要。GET はUUID・座標・体力・tickをJSONで返す。POST はUTF-8の uuid,x,y,z を受け取り、201生成、409重複または上限、400不正座標を返す。既存24人の次の基点は100,1,16。既存ブラウザ操作は維持され、管理元の完全な一本化は未完了。HTTPテスト追加済み、CI未確認。
+
 ## 今後の実装
 
 以下は未完了の開発項目。実装済みとCI・実動作検証済みを区別する。
