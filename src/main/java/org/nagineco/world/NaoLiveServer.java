@@ -9,8 +9,23 @@ public final class NaoLiveServer {
  private boolean running=true;
  private int speed=1;
  private Path savePath;
+ private DnmsMemoryAdapter memory;
+ private boolean mipEnabled=true;
+ private int mipTick=18000;
+ private long mipDay=-1;
+ private String memoryError="";
+ private void newMemoryBranch()throws java.io.IOException{
+  if(savePath==null)return;
+  var dir=savePath.toAbsolutePath().getParent().resolve("memory-branches").resolve(java.util.UUID.randomUUID().toString());
+  var next=new DnmsMemoryAdapter(dir);next.initialize(sim.states().size());memory=next;mipDay=-1;
+ }
+ private void integrateDue()throws java.io.IOException{
+  long tick=sim.ticks(),day=tick/24000;
+  if(memory!=null&&mipEnabled&&tick%24000>=mipTick&&mipDay!=day){memory.integrate();mipDay=day;}
+ }
+
  void configureSave(Path path)throws java.io.IOException{
-  savePath=path;if(Files.exists(path))sim=NaoSimulation.load(path);checkpoint();
+  savePath=path;if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();checkpoint();
  }
  private Path history(){return savePath.toAbsolutePath().getParent().resolve("history");}
  synchronized void checkpoint()throws java.io.IOException{
@@ -19,7 +34,7 @@ public final class NaoLiveServer {
  }
  synchronized boolean rewind(String id){
   if(savePath==null||!id.matches("[0-9]+-[a-f0-9-]{36}"))return false;
-  try{var restored=NaoSimulation.load(history().resolve(id+".bin"));restored.save(savePath);sim=restored;running=false;return true;}
+  try{var restored=NaoSimulation.load(history().resolve(id+".bin"));restored.save(savePath);sim=restored;newMemoryBranch();running=false;return true;}
   catch(java.io.IOException e){System.err.println(e);return false;}
  }
  synchronized String checkpoints(){
@@ -31,9 +46,11 @@ public final class NaoLiveServer {
 
  synchronized void save(){if(savePath!=null)try{sim.save(savePath);}catch(java.io.IOException e){System.err.println("Checkpoint failed: "+e);}}
 
- synchronized void advance(){if(running)for(int i=0;i<speed;i++){sim.tick();if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
+ synchronized void advance(){if(running)for(int i=0;i<speed;i++){var before=memory==null?null:sim.states();sim.tick();
+ if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
+ if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
  synchronized String snapshot(){
-  var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"naos\":[");
+  var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
   boolean first=true;
   for(var n:sim.states()){
    if(!first)out.append(',');first=false;var p=n.position();
@@ -44,7 +61,11 @@ public final class NaoLiveServer {
  synchronized boolean command(String cmd){
   if(cmd.startsWith("rewind:"))return rewind(cmd.substring(7));
   if(cmd.equals("checkpoint")){try{checkpoint();return true;}catch(java.io.IOException e){return false;}}
-  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->sim=new NaoSimulation();case "next"->{return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
+  if(cmd.equals("mip:on")){mipEnabled=true;return true;}
+  if(cmd.equals("mip:off")){mipEnabled=false;return true;}
+  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{memory.integrate();return true;}catch(java.io.IOException e){return false;}}
+  if(cmd.matches("mip:time:[0-9]{2}:[0-9]{2}")){try{mipTick=DnmsMemoryAdapter.clockTick(Integer.parseInt(cmd.substring(9,11)),Integer.parseInt(cmd.substring(12,14)));return true;}catch(IllegalArgumentException e){return false;}}
+  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{sim=new NaoSimulation();try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
   return true;
  }
  private static void send(HttpExchange e,int code,String type,byte[] data)throws java.io.IOException{
