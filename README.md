@@ -86,3 +86,7 @@ DNMSの standalone はFabric非依存のCLI接続モジュール。Java 21、Gra
 - 移動・採集・建築・保存・巻き戻しAPIと両Adapter実装。
 - 接続先選択・設定保存、世界ID、個体転送、障害時の整合性・再接続。
 - Minecraft既存AIとの統合、長期負荷試験、無料公開。
+
+
+## 移管済み旧コードの削除
+共通HTTP API・RewardEstimate・SharedMemorySearch・MemoryDecisionのコメントアウト済み旧実装は削除済み。正式実装はDNMS core、Worldには互換Adapterのみ残す。過去のコメントアウト済みという記述は移管当時の履歴を示す。未移管の稼働中処理と管理モードの制限は維持する。CI・接続検証は未確認。
