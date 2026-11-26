@@ -36,7 +36,6 @@ public final class DnmsMemoryAdapter {
   return search.hazardEvents();
  }
  public static int clockTick(int hour,int minute){
-  if(hour<0||hour>23||minute<0||minute>59)throw new IllegalArgumentException("clock");
-  return Math.floorMod((hour*60+minute-360)*24000/1440,24000);
+  return org.nagineco.doppel.core.WorldLifePolicy.clockTick(hour,minute);
  }
 }
