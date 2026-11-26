@@ -108,14 +108,20 @@ public final class NaoSimulation {
  }
  public static NaoSimulation load(java.nio.file.Path path)throws java.io.IOException{
   try(var in=new java.io.DataInputStream(new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(path)))){
-   String version=in.readUTF();if(!version.equals("DNMS-WORLD-1")&&!version.equals("DNMS-WORLD-2")&&!version.equals("DNMS-WORLD-3")&&!version.equals("DNMS-WORLD-4"))throw new java.io.IOException("Unknown checkpoint format");
+   int version=switch(in.readUTF()){
+    case "DNMS-WORLD-1" -> 1;
+    case "DNMS-WORLD-2" -> 2;
+    case "DNMS-WORLD-3" -> 3;
+    case "DNMS-WORLD-4" -> 4;
+    default -> throw new java.io.IOException("Unknown checkpoint format");
+   };
    int count=in.readInt();if(count<1||count>256)throw new java.io.IOException("Invalid population");
-   var sim=new NaoSimulation(count);if(version.equals("DNMS-WORLD-3")||version.equals("DNMS-WORLD-4"))sim.rewardEnabled=in.readBoolean();sim.world.read(in);sim.work.read(in);
+   var sim=new NaoSimulation(count);if(version>=3)sim.rewardEnabled=in.readBoolean();sim.world.read(in);sim.work.read(in);
    for(var n:sim.naos){n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
-    if(version.equals("DNMS-WORLD-4")){n.health=in.readDouble();String action=in.readUTF();n.lastAction=action.isEmpty()?null:Action.valueOf(action);n.lastActionTick=in.readLong();if(!Double.isFinite(n.health)||n.health<0||n.health>20||n.lastActionTick< -1||n.lastActionTick>sim.ticks()||(n.lastAction==null)!=(n.lastActionTick==-1))throw new java.io.IOException("Invalid health state");}
+    if(version>=4){n.health=in.readDouble();String action=in.readUTF();n.lastAction=action.isEmpty()?null:Action.valueOf(action);n.lastActionTick=in.readLong();if(!Double.isFinite(n.health)||n.health<0||n.health>20||n.lastActionTick< -1||n.lastActionTick>sim.ticks()||(n.lastAction==null)!=(n.lastActionTick==-1))throw new java.io.IOException("Invalid health state");}
     if(n.collected<0||n.collected>8||n.built<0||n.built>n.collected||n.attempts<0||!Double.isFinite(n.travel)||n.travel<0||n.travel>=1)throw new java.io.IOException("Invalid NPC state");
     n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());
-    if(!version.equals("DNMS-WORLD-1")){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());if(version.equals("DNMS-WORLD-3")||version.equals("DNMS-WORLD-4")){var reward=new RewardEstimate();reward.restore(in.readInt(),in.readDouble());n.rewards.put(action,reward);}}n.learning.restore(a,b);}}
+    if(version>=2){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());if(version>=3){var reward=new RewardEstimate();reward.restore(in.readInt(),in.readDouble());n.rewards.put(action,reward);}}n.learning.restore(a,b);}}
    if(in.read()!=-1)throw new java.io.IOException("Trailing checkpoint data");return sim;
   }catch(IllegalArgumentException e){throw new java.io.IOException("Invalid checkpoint",e);}
  }
