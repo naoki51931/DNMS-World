@@ -19,7 +19,7 @@ public final class NaoLiveServer {
  private static MemoryDecision decision(DnmsMemoryAdapter memory)throws java.io.IOException{
   var events=new java.util.ArrayList<SharedMemorySearch.Event>();
   for(String direction:java.util.List.of("EAST","WEST","NORTH","SOUTH"))events.addAll(memory.search(direction,50));
-  events.addAll(memory.search("SAFETY AFRAID",100));
+  events.addAll(memory.hazardEvents());
   return new MemoryDecision(events);
  }
  private void integrate()throws java.io.IOException{memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
