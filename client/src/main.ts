@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {step, type Body} from './physics';
 type Block=[number,number,number,string];
 const status=document.getElementById('status')!;
 async function start(){
@@ -20,8 +21,23 @@ async function start(){
   const mesh=new THREE.InstancedMesh(geometry,new THREE.MeshStandardMaterial({color}),group.length);
   group.forEach(([x,y,z],i)=>mesh.setMatrixAt(i,matrix.makeTranslation(x,y,z)));mesh.instanceMatrix.needsUpdate=true;scene.add(mesh);
  }
- status.textContent='DNMS World | '+blocks.length+' blocks | ドラッグで回転・ピンチで拡大';
+ const occupied=new Set(blocks.map(([x,y,z])=>x+','+y+','+z'));
+ const solid=(x:number,y:number,z:number)=>x<0||z<0||x>=32||z>=32||y<0||occupied.has(x+','+y+','+z');
+ const spawn=Math.max(...blocks.filter(b=>b[0]===16&&b[2]===16).map(b=>b[1]))+.5;
+ const body:Body={x:16,y:spawn,z:16,vy:0,grounded:false};
+ const avatar=new THREE.Mesh(new THREE.BoxGeometry(.6,1.8,.6),new THREE.MeshStandardMaterial({color:0xe8a4bb}));scene.add(avatar);
+ const keys=new Set<string>();const allowed=['KeyW','KeyA','KeyS','KeyD','Space'];
+ addEventListener('keydown',e=>{if(allowed.includes(e.code)){e.preventDefault();keys.add(e.code)}});
+ addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>keys.clear());
+ const pad=document.createElement('div');pad.style.cssText='position:fixed;bottom:20px;left:20px;display:flex;gap:8px;touch-action:none';
+ for(const [label,key] of [['↑','KeyW'],['←','KeyA'],['↓','KeyS'],['→','KeyD'],['Jump','Space']]){
+ const button=document.createElement('button');button.textContent=label;button.style.cssText='padding:16px;font-size:20px;touch-action:none';
+ button.onpointerdown=e=>{button.setPointerCapture(e.pointerId);keys.add(key)};
+ button.onpointerup=button.onpointercancel=button.onlostpointercapture=()=>keys.delete(key);pad.appendChild(button);
+ }document.body.appendChild(pad);
+ const clock=new THREE.Clock();
+ status.textContent='DNMS World | '+blocks.length+' blocks | WASD / 矢印ボタン・Spaceでジャンプ';
  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
- renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera)});
+ renderer.setAnimationLoop(()=>{const dt=clock.getDelta(); const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3(-forward.z,0,forward.x);const move=forward.multiplyScalar(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))).addScaledVector(right,Number(keys.has('KeyD'))-Number(keys.has('KeyA'))).normalize().multiplyScalar(4);step(body,solid,move.x,move.z,keys.has('Space'),dt);avatar.position.set(body.x,body.y+.9,body.z);controls.update();renderer.render(scene,camera)});
 }
 start().catch(e=>{status.textContent='起動失敗: '+String(e)});
