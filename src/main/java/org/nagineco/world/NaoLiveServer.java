@@ -102,7 +102,7 @@ public final class NaoLiveServer {
 
  synchronized void advance(){if(running)for(int i=0;i<speed&&running;i++){var before=memory==null?null:sim.states();sim.tick();
  if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
- if(org.nagineco.doppel.core.CheckpointPolicy.due(sim.ticks()))try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
+ if(org.nagineco.doppel.core.CheckpointPolicy.due(sim.ticks()))try{persistSpawn();}catch(java.io.IOException e){System.err.println(e);}}}
  synchronized String searchMemory(String query)throws java.io.IOException{
   if(query.length()>256)throw new IllegalArgumentException("query too long");
   var out=new StringBuilder("[");
