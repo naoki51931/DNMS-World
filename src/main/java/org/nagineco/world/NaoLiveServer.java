@@ -35,7 +35,16 @@ public final class NaoLiveServer {
   events.addAll(memory.hazardEvents());
   return new MemoryDecision(events);
  }
- private void integrate()throws java.io.IOException{if(sim.states().isEmpty())return;memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
+ private void integrate()throws java.io.IOException{
+  if(sim.states().isEmpty())return;
+  var dir=memoryDir.resolveSibling(UUID.randomUUID().toString());
+  copyMemory(memoryDir,dir);
+  var staged=new DnmsMemoryAdapter(dir);
+  staged.integrate();
+  var nextDecision=decision(staged);
+  sim.synchronizeSkills(skillSource,skillMode);
+  sim.setMemoryDecision(nextDecision);memory=staged;memoryDir=dir;
+ }
  private String memoryError="";
  private boolean spawnSavePending;
  private void newMemoryBranch()throws java.io.IOException{
@@ -58,8 +67,10 @@ public final class NaoLiveServer {
   var identity=path.toAbsolutePath().resolveSibling("world-id.txt");
   Files.createDirectories(identity.getParent());
   try(var channel=java.nio.channels.FileChannel.open(identity.resolveSibling("world-id.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);var lock=channel.lock()){
+   if(!Files.exists(identity)){var backup=identity.resolveSibling("world-id.backup");if(Files.isRegularFile(backup)){UUID.fromString(Files.readString(backup).trim());Files.copy(backup,identity);forceFile(identity);} }
    if(!Files.exists(identity)){if(Files.exists(pointer())||Files.isDirectory(history()))throw new java.io.IOException("Missing world identity; restore world-id.txt from backup");var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
    worldId=UUID.fromString(Files.readString(identity).trim());
+   var backup=identity.resolveSibling("world-id.backup");if(!Files.exists(backup)){Files.copy(identity,backup);forceFile(backup);}else if(!worldId.equals(UUID.fromString(Files.readString(backup).trim())))throw new java.io.IOException("World identity backup mismatch");
   }
   if(Files.exists(epochPath()))epoch=UUID.fromString(Files.readString(epochPath()).trim());else rotateEpoch();
   var pointer=pointer();
@@ -80,14 +91,19 @@ public final class NaoLiveServer {
  private void publish(String id)throws java.io.IOException{org.nagineco.doppel.core.CheckpointPolicy.publish(pointer(),id);}
  synchronized void checkpoint()throws java.io.IOException{
   if(savePath==null)return;
+  long reserve=Long.getLong("dnms.minFreeBytes",268435456L);
+  if(reserve<0||Files.getFileStore(savePath.toAbsolutePath().getParent()).getUsableSpace()<reserve)throw new java.io.IOException("Insufficient checkpoint disk reserve");
   String id=org.nagineco.doppel.core.CheckpointPolicy.generation(sim.ticks());
   var dir=history().resolve(id+".memory");
   try{
+  Files.createDirectories(dir);
+  Files.writeString(dir.resolve("incomplete"),"pending");forceFile(dir.resolve("incomplete"));
   copyMemory(memoryDir,dir);
   Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n"+skillMode.name()+"\n"+skillSource+"\n");
   sim.save(history().resolve(id+".bin"));
   try(var files=Files.list(dir)){for(var file:files.toList())forceFile(file);}
   forceFile(history().resolve(id+".bin"));
+  Files.delete(dir.resolve("incomplete"));
   publish(id);
   }catch(java.io.IOException e){
    try{if(!Files.exists(pointer())||!Files.readString(pointer()).trim().equals(id)){
@@ -102,6 +118,7 @@ public final class NaoLiveServer {
   if(!org.nagineco.doppel.core.CheckpointPolicy.valid(id))throw new java.io.IOException("Invalid generation");
   var restored=NaoSimulation.load(history().resolve(id+".bin"));
   var source=history().resolve(id+".memory");
+  if(Files.exists(source.resolve("incomplete")))throw new java.io.IOException("Incomplete checkpoint");
   var settings=Files.readAllLines(source.resolve("settings.txt"));
   if((settings.size()!=3&&settings.size()!=5)||!settings.get(0).matches("true|false"))throw new java.io.IOException("Invalid MIP settings");
   int tick;long day;
@@ -126,7 +143,7 @@ public final class NaoLiveServer {
  synchronized String checkpoints(){
   if(savePath==null||!Files.isDirectory(history()))return "[]";
   try(var files=Files.list(history())){
-   return files.map(p->p.getFileName().toString()).filter(n->Files.isRegularFile(history().resolve(n.replace(".bin",".memory")+"/settings.txt"))).filter(n->n.matches("[0-9]+-[a-f0-9-]{36}\\.bin")).map(n->n.substring(0,n.length()-4)).sorted().map(n->"\""+n+"\"").collect(java.util.stream.Collectors.joining(",","[","]"));
+   return files.map(p->p.getFileName().toString()).filter(n->Files.isRegularFile(history().resolve(n.replace(".bin",".memory")+"/settings.txt"))).filter(n->n.endsWith(".bin")&&org.nagineco.doppel.core.CheckpointPolicy.valid(n.substring(0,n.length()-4))).filter(n->!Files.exists(history().resolve(n.replace(".bin",".memory")).resolve("incomplete"))).map(n->n.substring(0,n.length()-4)).sorted().map(n->"\""+n+"\"").collect(java.util.stream.Collectors.joining(",","[","]"));
   }catch(java.io.IOException e){return "[]";}
  }
 
