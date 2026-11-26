@@ -15,11 +15,13 @@ class WorldHttpApiTest {
    var uri=URI.create("http://127.0.0.1:"+server.getAddress().getPort()+"/api/v1/npcs");
    var client=HttpClient.newHttpClient();
    assertEquals(401,client.send(HttpRequest.newBuilder(uri).GET().build(),HttpResponse.BodyHandlers.ofString()).statusCode());
+   var epoch=app.identity().split("\"")[7];
+   assertEquals(409,client.send(HttpRequest.newBuilder(uri).header("Authorization","Bearer "+token).GET().build(),HttpResponse.BodyHandlers.ofString()).statusCode());
    var id=UUID.randomUUID();
-   var req=HttpRequest.newBuilder(uri).header("Authorization","Bearer "+token).POST(HttpRequest.BodyPublishers.ofString(id+",100,1,16")).build();
+   var req=HttpRequest.newBuilder(uri).header("Authorization","Bearer "+token).header("X-DNMS-Epoch",epoch).POST(HttpRequest.BodyPublishers.ofString(id+",100,1,16")).build();
    assertEquals(201,client.send(req,HttpResponse.BodyHandlers.ofString()).statusCode());
    assertEquals(409,client.send(req,HttpResponse.BodyHandlers.ofString()).statusCode());
-   var list=client.send(HttpRequest.newBuilder(uri).header("Authorization","Bearer "+token).GET().build(),HttpResponse.BodyHandlers.ofString());
+   var list=client.send(HttpRequest.newBuilder(uri).header("Authorization","Bearer "+token).header("X-DNMS-Epoch",epoch).GET().build(),HttpResponse.BodyHandlers.ofString());
    assertEquals(200,list.statusCode());assertTrue(list.body().contains(id.toString()));
   }finally{server.stop(0);}
  }
