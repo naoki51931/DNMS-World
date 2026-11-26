@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-type Nao=[number,number,number,number,string,number,number];
+type Nao=[number,number,number,number,string,number,number,number?,number?,number?,number?,boolean?];
 type Frame={tick:number,naos:Nao[],running?:boolean,speed?:number};
 const live=new URLSearchParams(location.search).get('live')==='1';
 const api=(path:string)=>new URL('api/'+path,location.href).href;
@@ -26,6 +26,11 @@ async function start(){
   return {avatar,logs,posts,plot,option};
  };
  const actors=frames[0].naos.map(createActor);
+ const physiology=document.createElement('div');
+ physiology.style.whiteSpace='pre-line';
+ document.querySelector('#panel')!.appendChild(physiology);
+ const labels:Record<string,string>={COLLECT:'資材採集',BUILD:'建築',REST:'休息',EAT:'食事',FORAGE:'食料確保',SLEEP:'睡眠'};
+ let previousDetails='';
  let time=0,playing=true;const clock=new THREE.Clock();
  const toggle=document.querySelector<HTMLButtonElement>('#toggle')!;
  toggle.onclick=()=>{playing=!playing;toggle.textContent=playing?'停止':'再生'};
@@ -64,6 +69,11 @@ async function start(){
  if(Number(npc.value)>=actors.length||npc.value==='')npc.value='-1';
  frame.naos.forEach(([id,x,y,z,goal,collected,built])=>{const a=actors[id];a.avatar.position.set(x,y+.4,z);a.logs.forEach((m,j)=>m.visible=j>=collected);a.posts.forEach((m,j)=>m.visible=j<built)});
  const selected=Number(npc.value);if(selected>=0){const p=actors[selected].avatar.position;camera.position.add(p.clone().sub(controls.target));controls.target.copy(p)}
+ const n=selected>=0?frame.naos[selected]:undefined;
+ const details=n&&n[7]!==undefined?
+  '奈央 '+(n[0]+1)+' | '+(n[7]<=0?'死亡':n[11]?'睡眠中':labels[n[4]]??n[4])+'\n体力 '+n[7].toFixed(1)+'/20 | 満腹度 '+Math.round((n[8]??0)/240)+'%\n疲労度 '+Math.round((n[10]??0)/240)+'% | 食料 '+n[9]+'食':
+  live?'個体を選択すると身体状態を表示します':'記録再生：身体状態データなし';
+ if(details!==previousDetails){physiology.textContent=details;previousDetails=details;}
  status.textContent=(live?'ライブ | tick ':'記録再生 | tick ')+frame.tick+' | 完成 '+frame.naos.filter(n=>n[6]===8).length+'/'+actors.length+(selected>=0?' | '+frame.naos[selected][4]:'');controls.update();renderer.render(scene,camera)});
 }
 start().catch(e=>status.textContent=String(e));
