@@ -32,20 +32,29 @@ async function start(){
  document.querySelector<HTMLButtonElement>('#reset')!.onclick=()=>{time=0};
  const speed=document.querySelector<HTMLSelectElement>('#speed')!,npc=document.querySelector<HTMLSelectElement>('#npc')!;
  if(live){
-  let busy=false;let queue=Promise.resolve();
+  let busy=false;let queue=Promise.resolve();let pending=0;
+  const error=document.createElement('div');document.querySelector('#panel')!.appendChild(error);
   const next=document.createElement('button');next.textContent='奈央を追加';document.querySelector('#panel')!.appendChild(next);
   const sync=async(cmd?:string)=>{
-   if(busy&&!cmd)return;busy=true;
+   busy=true;
    try{const res=await fetch(api(cmd?'control':'state'),cmd?{method:'POST',headers:{'X-DNMS-Control':'dnms-local'},body:cmd}:{cache:'no-store'});
     if(!res.ok)throw Error(String(res.status));current=await res.json();playing=!!current.running;toggle.textContent=playing?'停止':'再生';speed.value=String(current.speed);
-   }catch(e){status.textContent='通信エラー: '+String(e)}finally{busy=false}
+   error.textContent='';}catch(e){error.textContent='通信エラー: '+String(e)}finally{busy=false}
   };
-  const send=(cmd:string)=>{queue=queue.then(()=>sync(cmd));};
+  const send=(cmd:string)=>{pending++;queue=queue.then(()=>sync(cmd)).finally(()=>{pending--});};
+  const panel=document.querySelector('#panel')!;
+  const history=document.createElement('select');panel.appendChild(history);
+  const refresh=async()=>{try{const res=await fetch(api('checkpoints'));if(!res.ok)throw Error(String(res.status));const ids:string[]=await res.json();history.replaceChildren();ids.sort((a,b)=>Number(b.split('-')[0])-Number(a.split('-')[0])).forEach(id=>{const o=document.createElement('option');o.value=id;o.textContent='tick '+id.split('-')[0]+' / '+id.slice(-6);history.appendChild(o)});}catch(e){error.textContent=String(e)}};
+  const button=(label:string,action:()=>void)=>{const b=document.createElement('button');b.textContent=label;b.onclick=action;panel.appendChild(b)};
+  button('保存',()=>{send('checkpoint');void queue.then(refresh)});
+  button('履歴更新',()=>{void refresh()});
+  button('巻き戻し',()=>{if(history.value&&confirm('世界全体を巻き戻しますか？'))send('rewind:'+history.value)});
+  void refresh();
   next.onclick=()=>send('next');
   toggle.onclick=()=>send(playing?'pause':'resume');
   document.querySelector<HTMLButtonElement>('#reset')!.onclick=()=>send('reset');
   speed.onchange=()=>send(speed.value);
-  setInterval(()=>{void sync()},100);
+  setInterval(()=>{if(!busy&&pending===0){queue=queue.then(()=>sync());}},100);
  }
  npc.onchange=()=>{const id=Number(npc.value);if(id>=0){const p=actors[id].avatar.position;camera.position.copy(p).add(new THREE.Vector3(8,8,8));controls.target.copy(p)}else{camera.position.set(95,110,110);controls.target.set(94,0,10)}controls.update()};
  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
