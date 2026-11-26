@@ -44,3 +44,10 @@ tasks.register('exportNaoReplay', JavaExec) {
  args file('client/public/nao-replay.json').absolutePath
 }
 tasks.named('exportTerrain') { dependsOn 'exportNaoReplay' }
+
+tasks.register('runLive', JavaExec) {
+ dependsOn classes
+ classpath = sourceSets.main.runtimeClasspath
+ mainClass = 'org.nagineco.world.NaoLiveServer'
+ args file('client/dist').absolutePath
+}
