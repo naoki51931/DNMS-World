@@ -1,6 +1,6 @@
 # DNMS World
 
-**[概要](#dnms-world) ｜ [インストール方法](#installation) ｜ [開発ロードマップ](#roadmap)**
+**[概要](#dnms-world) ｜ [インストール方法](#installation) ｜ [Minecraft版DNMSの導入](https://github.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System#install-dnms) ｜ [開発ロードマップ](#roadmap)**
 
 | [Windows](#install-windows) | [Mac](#install-mac) | [Android](#install-android) | [iPhone](#install-iphone) |
 | :---: | :---: | :---: | :---: |
