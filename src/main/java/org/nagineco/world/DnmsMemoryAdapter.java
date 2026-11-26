@@ -7,6 +7,7 @@ public final class DnmsMemoryAdapter {
  private final Path dir;
  private SharedMemorySearch search;
  public DnmsMemoryAdapter(Path dir){this.dir=dir;}
+ // DNMS-LEGACY: local personality/journal bootstrap for standalone tests; DNMS owns identity and personality after integration.
  public void initialize(int count)throws IOException{
   if(count<1||count>256)throw new IllegalArgumentException("count");
   Files.createDirectories(dir);
