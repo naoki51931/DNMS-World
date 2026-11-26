@@ -20,7 +20,7 @@ public final class DnmsMemoryAdapter {
   if(before.position().equals(after.position())&&before.goal()==after.goal())return;
   var p=after.position();var q=before.position();
   String action=p.x()>q.x()?"EAST":p.x()<q.x()?"WEST":p.z()>q.z()?"SOUTH":p.z()<q.z()?"NORTH":"STAY";
-  String reason=switch(before.goal()){case REST,EAT -> "NONE";case FORAGE -> "COLLECT";default -> before.goal().name();};
+  String reason=switch(before.goal()){case REST,EAT,SLEEP -> "NONE";case FORAGE -> "COLLECT";default -> before.goal().name();};
   String line=String.format(Locale.ROOT,"- day=%d tick=%d position=(%d,%d,%d) action=%s emotion=NEUTRAL reason=%s%n",tick/24000+1,tick%24000,p.x(),p.y(),p.z(),action,reason);
   Files.writeString(journal(after.slot()),line,StandardOpenOption.APPEND);
  }
