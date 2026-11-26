@@ -14,7 +14,7 @@ tasks.register('exportTerrain', JavaExec) {
     args file('client/public/terrain.json').absolutePath
 }
 
-def upstreamHashes = [CheckpointPolicy: '819d63438807d6c7796e6d27aac1ae087a885168',
+def upstreamHashes = [CheckpointPolicy: '915073941ecd79ba0229848271adef26a417f9ce',
 WorldIdentityPolicy: '512119ba5b26cde606dd69920788d020fb34308a',
 WorldProgressPolicy: 'e803309851341fbd7d60adbe8a9df21b54d5bd60',
 MemoryJournal: '0d5eefe41909467da27014c8a69869f1baf206d7',
