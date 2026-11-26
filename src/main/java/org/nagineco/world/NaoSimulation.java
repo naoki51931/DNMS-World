@@ -18,11 +18,14 @@ public final class NaoSimulation {
  public NaoSimulation(){this(24);}
  public NaoSimulation(int count){
   if(count<1||count>256)throw new IllegalArgumentException("count");
-  for(int i=0;i<count;i++){
-   var n=new Nao(i);naos.add(n);
+  for(int i=0;i<count;i++)addNao();
+ }
+ public boolean addNao(){
+   if(naos.size()>=256)return false;
+   var n=new Nao(naos.size());naos.add(n);
    for(int x=-2;x<=5;x++)for(int z=-2;z<=2;z++)world.compareAndSet(new Pos(n.anchor.x()+x,0,n.anchor.z()+z),Block.AIR,Block.DIRT);
    for(int j=0;j<8;j++)world.compareAndSet(source(n,j),Block.AIR,Block.LOG);
-  }
+   return true;
  }
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
  private Goal goal(Nao n){return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
