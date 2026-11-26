@@ -13,3 +13,13 @@ jobs:
         with:
           gradle-version: '8.10.2'
       - run: gradle --no-daemon test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: gradle --no-daemon exportTerrain
+      - run: npm install --no-audit --no-fund && npm run build
+        working-directory: client
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dnms-world-browser
+          path: client/dist
