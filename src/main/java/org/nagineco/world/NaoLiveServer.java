@@ -16,7 +16,12 @@ public final class NaoLiveServer {
  private long mipDay=-1;
  private org.nagineco.doppel.core.PhysicalSkillSync.Mode skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.FULL;
  private int skillSource=0;
- private void integrate()throws java.io.IOException{memory.integrate();sim.synchronizeSkills(skillSource,skillMode);}
+ private static MemoryDecision decision(DnmsMemoryAdapter memory)throws java.io.IOException{
+  var events=new java.util.ArrayList<SharedMemorySearch.Event>();
+  for(String direction:java.util.List.of("EAST","WEST","NORTH","SOUTH"))events.addAll(memory.search(direction,50));
+  return new MemoryDecision(events);
+ }
+ private void integrate()throws java.io.IOException{memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
  private String memoryError="";
  private void newMemoryBranch()throws java.io.IOException{
   if(savePath==null)return;
@@ -70,8 +75,9 @@ public final class NaoLiveServer {
   for(int i=1;i<=restored.states().size();i++)if(!Files.isRegularFile(source.resolve(String.format(java.util.Locale.ROOT,"nao_%02d.md",i))))throw new java.io.IOException("Missing journal");
   if(!Files.isRegularFile(source.resolve("nao_personality.md")))throw new java.io.IOException("Missing personality");
   copyMemory(source,dir);
+  var restoredMemory=new DnmsMemoryAdapter(dir);restored.setMemoryDecision(decision(restoredMemory));
   restored.save(savePath);publish(id);
-  sim=restored;memoryDir=dir;memory=new DnmsMemoryAdapter(dir);mipEnabled=Boolean.parseBoolean(settings.get(0));mipTick=tick;mipDay=day;skillMode=mode;skillSource=sourceSlot;memoryError="";
+  sim=restored;memoryDir=dir;memory=restoredMemory;mipEnabled=Boolean.parseBoolean(settings.get(0));mipTick=tick;mipDay=day;skillMode=mode;skillSource=sourceSlot;memoryError="";
  }
  synchronized boolean rewind(String id){
   if(savePath==null)return false;
