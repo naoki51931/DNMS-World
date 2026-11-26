@@ -36,3 +36,11 @@ tasks.register('fetchDnmsPlan') {
 }
 sourceSets.main.java.srcDir(layout.buildDirectory.dir('upstream'))
 tasks.named('compileJava') { dependsOn 'fetchDnmsPlan' }
+
+tasks.register('exportNaoReplay', JavaExec) {
+ dependsOn classes
+ classpath = sourceSets.main.runtimeClasspath
+ mainClass = 'org.nagineco.world.NaoReplayExport'
+ args file('client/public/nao-replay.json').absolutePath
+}
+tasks.named('exportTerrain') { dependsOn 'exportNaoReplay' }
