@@ -67,6 +67,11 @@ class WorldEnduranceTest {
             long mipStart = System.nanoTime();
             memory.integrate();
             double mipMs = (System.nanoTime() - mipStart) / 1e6;
+            long searchStart = System.nanoTime();
+            var matches = memory.search("SAFETY", 100);
+            double searchMs = (System.nanoTime() - searchStart) / 1e6;
+            assertTrue(matches.size() <= 100);
+            long heapBytes = java.lang.management.ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
             long bytes = Files.size(dir.resolve("memory/nao_integrated_memory.md"));
             assertTrue(bytes >= previousBytes, "shared index unexpectedly shrank");
             previousBytes = bytes;
@@ -85,9 +90,9 @@ class WorldEnduranceTest {
             Arrays.sort(samples);
             double p95 = samples[22799] / 1e6;
             System.out.printf(Locale.ROOT,
-                "days=%d day=%d population=256 elapsedMs=%.3f p95TickMs=%.3f maxTickMs=%.3f mipMs=%.3f indexBytes=%d checkpointBytes=%d profilingCandidate=%b%n",
+                "days=%d day=%d population=256 elapsedMs=%.3f p95TickMs=%.3f maxTickMs=%.3f mipMs=%.3f indexBytes=%d checkpointBytes=%d profilingCandidate=%b searchMs=%.3f heapBytes=%d%n",
                 days, day, (System.nanoTime()-start)/1e6, p95, samples[23999]/1e6,
-                mipMs, bytes, Files.size(save), p95 > 25);
+                mipMs, bytes, Files.size(save), p95 > 25, searchMs, heapBytes);
         }
     }
 }
