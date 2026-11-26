@@ -46,6 +46,7 @@ public final class NaoLiveServer {
   saveLockChannel=java.nio.channels.FileChannel.open(path.toAbsolutePath().resolveSibling("server.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);
   try{saveLock=saveLockChannel.tryLock();if(saveLock==null)throw new java.io.IOException("World already open");}
   catch(java.io.IOException|RuntimeException e){saveLockChannel.close();throw e;}
+  try{
   var identity=path.toAbsolutePath().resolveSibling("world-id.txt");
   Files.createDirectories(identity.getParent());
   try(var channel=java.nio.channels.FileChannel.open(identity.resolveSibling("world-id.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);var lock=channel.lock()){
@@ -54,8 +55,9 @@ public final class NaoLiveServer {
   }
   var pointer=pointer();
   if(Files.exists(pointer)){restore(Files.readString(pointer).trim());}
-  else {if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();}
+  else {if(Files.isDirectory(history())){try(var files=Files.list(history())){if(files.anyMatch(x->x.getFileName().toString().endsWith(".bin")))throw new java.io.IOException("Missing generation pointer; explicit recovery required");}}if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();}
   checkpoint();
+  }catch(java.io.IOException|RuntimeException e){try{saveLockChannel.close();}catch(java.io.IOException close){e.addSuppressed(close);}throw e;}
  }
  private Path history(){return savePath.toAbsolutePath().getParent().resolve("history");}
  private Path pointer(){return savePath.toAbsolutePath().resolveSibling("latest-generation.txt");}
@@ -71,7 +73,8 @@ public final class NaoLiveServer {
   copyMemory(memoryDir,dir);
   Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n"+skillMode.name()+"\n"+skillSource+"\n");
   sim.save(history().resolve(id+".bin"));
-  sim.save(savePath);publish(id);
+  publish(id);
+  try{sim.save(savePath);}catch(java.io.IOException e){System.err.println("Legacy mirror failed: "+e);}
  }
  private void restore(String id)throws java.io.IOException{
   if(!org.nagineco.doppel.core.CheckpointPolicy.valid(id))throw new java.io.IOException("Invalid generation");
@@ -90,7 +93,8 @@ public final class NaoLiveServer {
   if(!Files.isRegularFile(source.resolve("nao_personality.md")))throw new java.io.IOException("Missing personality");
   copyMemory(source,dir);
   var restoredMemory=new DnmsMemoryAdapter(dir);restored.setMemoryDecision(decision(restoredMemory));
-  restored.save(savePath);publish(id);
+  publish(id);
+  try{restored.save(savePath);}catch(java.io.IOException e){System.err.println("Legacy mirror failed: "+e);}
   sim=restored;memoryDir=dir;memory=restoredMemory;mipEnabled=Boolean.parseBoolean(settings.get(0));mipTick=tick;mipDay=day;skillMode=mode;skillSource=sourceSlot;memoryError="";
  }
  synchronized boolean rewind(String id){
