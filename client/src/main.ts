@@ -43,10 +43,41 @@ async function start(){
  button.onpointerdown=e=>{button.setPointerCapture(e.pointerId);keys.add(key)};
  button.onpointerup=button.onpointercancel=button.onlostpointercapture=()=>keys.delete(key);pad.appendChild(button);
  }document.body.appendChild(pad);
+
+ // Lightweight local simulation; no backend requests.
+ type LocalNpc={x:number;z:number;angle:number};
+ const storageKey='dnms-local-v1';
+ let npcs:LocalNpc[]=[], ticks=0;
+ const heights=new Map<string,number>();
+ for(const [x,y,z] of blocks){const k=x+','+z;heights.set(k,Math.max(heights.get(k)??-1,y));}
+ const height=(x:number,z:number)=>(heights.get(Math.round(x)+','+Math.round(z))??-1)+.5;
+ const spawnNpc=()=>({x:2+Math.random()*27,z:2+Math.random()*27,angle:Math.random()*Math.PI*2});
+ try{const saved=JSON.parse(localStorage.getItem(storageKey)??'null');if(saved&&Array.isArray(saved.npcs)&&saved.npcs.length>=1&&saved.npcs.length<=256&&saved.npcs.every((n:LocalNpc)=>Number.isFinite(n.x)&&Number.isFinite(n.z)&&Number.isFinite(n.angle)&&n.x>=1&&n.x<=30&&n.z>=1&&n.z<=30)&&Number.isSafeInteger(saved.ticks)&&saved.ticks>=0){npcs=saved.npcs;ticks=saved.ticks;}}catch{}
+ if(!npcs.length)npcs=Array.from({length:24},spawnNpc);
+ const npcMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(.55,1.6,.55),new THREE.MeshStandardMaterial({color:0x607fca}),256);
+ npcMesh.frustumCulled=false;scene.add(npcMesh);
+ const panel=document.createElement('div');panel.style.cssText='position:fixed;top:100px;right:8px;background:#172331;color:white;padding:8px;border-radius:8px;z-index:10;font:14px sans-serif;max-width:45vw';
+ const info=document.createElement('div');panel.appendChild(info);
+ let saveMessage='';
+ const save=()=>{try{localStorage.setItem(storageKey,JSON.stringify({npcs,ticks}));saveMessage='保存済み';}catch{saveMessage='保存失敗';}};
+ const refresh=()=>{info.textContent='Non-Server | NPC '+npcs.length+'/256 | Day '+(1+Math.floor(ticks/24000))+' | '+Math.floor((ticks%24000)/1000)+':'+String(Math.floor((ticks%1000)*60/1000)).padStart(2,'0')+' '+saveMessage;};
+ let paused=false;
+ const action=(label:string,fn:()=>void)=>{const b=document.createElement('button');b.textContent=label;b.style.cssText='min-height:44px;margin:2px';b.onclick=()=>{fn();refresh();};panel.appendChild(b);return b;};
+ action('+1 NPC',()=>{if(npcs.length<256){npcs.push(spawnNpc());save();}});
+ const pause=action('一時停止',()=>{paused=!paused;pause.textContent=paused?'再開':'一時停止';});
+ action('保存',save);
+ action('新規世界',()=>{if(confirm('端末内のNPCと時刻を初期化しますか？')){npcs=Array.from({length:24},spawnNpc);ticks=0;save();}});
+ document.body.appendChild(panel);refresh();
+ const drawNpcs=()=>{npcMesh.count=npcs.length;npcs.forEach((n,i)=>npcMesh.setMatrixAt(i,matrix.makeTranslation(n.x,height(n.x,n.z)+.8,n.z)));npcMesh.instanceMatrix.needsUpdate=true;};
+ drawNpcs();
+ let elapsed=0;
+ const advanceLocal=(dt:number)=>{if(paused||document.hidden)return;elapsed+=Math.min(dt,.25);while(elapsed>=.05){elapsed-=.05;ticks++;for(const n of npcs){if(Math.random()<.025)n.angle+=Math.random()*2-1;const x=n.x+Math.cos(n.angle)*.035,z=n.z+Math.sin(n.angle)*.035;if(x<1||x>30||z<1||z>30||Math.abs(height(x,z)-height(n.x,n.z))>1){n.angle+=Math.PI/2+Math.random();}else{n.x=x;n.z=z;}}if(ticks%200===0)save();}drawNpcs();refresh();};
+ addEventListener('pagehide',save);document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
+
  const clock=new THREE.Clock();
  status.textContent='DNMS World | '+blocks.length+' blocks | WASD / 矢印ボタン・Spaceでジャンプ';
  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
- renderer.setAnimationLoop(()=>{const dt=clock.getDelta(); const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3(-forward.z,0,forward.x);const move=forward.multiplyScalar(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))).addScaledVector(right,Number(keys.has('KeyD'))-Number(keys.has('KeyA'))).normalize().multiplyScalar(4);step(body,solid,move.x,move.z,keys.has('Space'),dt);avatar.position.set(body.x,body.y+.9,body.z);controls.update();renderer.render(scene,camera)});
+ renderer.setAnimationLoop(()=>{const dt=clock.getDelta(); advanceLocal(dt); const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3(-forward.z,0,forward.x);const move=forward.multiplyScalar(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))).addScaledVector(right,Number(keys.has('KeyD'))-Number(keys.has('KeyA'))).normalize().multiplyScalar(4);step(body,solid,move.x,move.z,keys.has('Space'),dt);avatar.position.set(body.x,body.y+.9,body.z);controls.update();renderer.render(scene,camera)});
 }
 start().catch(e=>{status.textContent='起動失敗: '+String(e)});
 
