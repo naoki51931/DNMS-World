@@ -10,3 +10,20 @@ tasks.register('exportTerrain', JavaExec) {
     mainClass = 'org.nagineco.world.TerrainExport'
     args file('client/public/terrain.json').absolutePath
 }
+
+def upstreamPlan = layout.buildDirectory.file('upstream/org/nagineco/doppel/core/NaoBuildingPlan.java')
+tasks.register('fetchDnmsPlan') {
+    outputs.file(upstreamPlan)
+    doLast {
+        def target = upstreamPlan.get().asFile
+        target.parentFile.mkdirs()
+        byte[] bytes = new URI('https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/main/src/main/java/org/nagineco/doppel/core/NaoBuildingPlan.java').toURL().openStream().withCloseable { it.readAllBytes() }
+        def digest = java.security.MessageDigest.getInstance('SHA-1')
+        digest.update(("blob " + bytes.length + "\u0000").getBytes('UTF-8'))
+        def actual = digest.digest(bytes).encodeHex().toString()
+        if (actual != 'd7e5d9c6981d540942ef713943aaedf037ef14b2') throw new GradleException('Upstream blueprint changed; review compatibility before updating')
+        target.bytes = bytes
+    }
+}
+sourceSets.main.java.srcDir(layout.buildDirectory.dir('upstream'))
+tasks.named('compileJava') { dependsOn 'fetchDnmsPlan' }
