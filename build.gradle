@@ -35,7 +35,7 @@ tasks.register('fetchDnmsPlan') {
     doLast {
         upstreamHashes.each { name, expected ->
             def target = layout.buildDirectory.file("upstream/org/nagineco/doppel/core/${name}.java").get().asFile
-            def connection = new URI("https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/main/src/main/java/org/nagineco/doppel/core/${name}.java").toURL().openConnection()
+            def connection = new URI("https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/1a88ea43d5894f5b5ebb29327b575b667d26d7b6/src/main/java/org/nagineco/doppel/core/${name}.java").toURL().openConnection()
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
             byte[] bytes = connection.inputStream.withCloseable { it.readAllBytes() }
@@ -70,7 +70,7 @@ tasks.register('fetchDnmsMip') {
  inputs.property('blobHash','9380c13d8393f8edfca33ca7e261426c3fe0d3c7')
  outputs.file(target)
  doLast {
-  def c=new URI('https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/main/patches/memory-integration/src/org/nagineco/patch/memoryintegration/MemoryIntegrationPatch.java').toURL().openConnection()
+  def c=new URI('https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/1a88ea43d5894f5b5ebb29327b575b667d26d7b6/patches/memory-integration/src/org/nagineco/patch/memoryintegration/MemoryIntegrationPatch.java').toURL().openConnection()
   c.connectTimeout=15000;c.readTimeout=15000
   byte[] bytes=c.inputStream.withCloseable { it.readAllBytes() }
   def digest=java.security.MessageDigest.getInstance('SHA-1')
@@ -86,7 +86,7 @@ tasks.register('fetchDnmsLearning') {
  inputs.property('blobHash','e6b5b327412c26afbf6f2dcb02690e9693f9329b')
  outputs.file(target)
  doLast {
-  def c=new URI('https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/main/src/main/java/org/nagineco/doppel/NaoActionLearning.java').toURL().openConnection()
+  def c=new URI('https://raw.githubusercontent.com/naoki51931/DNMS_Doppelganger-NPC-Manegement-System/1a88ea43d5894f5b5ebb29327b575b667d26d7b6/src/main/java/org/nagineco/doppel/NaoActionLearning.java').toURL().openConnection()
   c.connectTimeout=15000;c.readTimeout=15000
   byte[] bytes=c.inputStream.withCloseable { it.readAllBytes() }
   def digest=java.security.MessageDigest.getInstance('SHA-1')
