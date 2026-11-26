@@ -10,10 +10,15 @@ public final class NaoSimulation {
  public record State(int slot,Pos position,Goal goal,int collected,int built,long attempts){}
  private static final class Nao {
   final int slot; final Pos anchor; Pos position; int collected,built; long attempts; double travel;
+  final EnumMap<Action,RewardEstimate> rewards=new EnumMap<>(Action.class);
   final NaoActionLearning learning=new NaoActionLearning();
   PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
   Nao(int slot){this.slot=slot;anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
  }
+ private boolean rewardEnabled=false;
+ public boolean rewardEnabled(){return rewardEnabled;}
+ public void setRewardEnabled(boolean enabled){rewardEnabled=enabled;}
+ public double rewardPreference(int slot,Action action){return naos.get(slot).rewards.getOrDefault(action,new RewardEstimate()).preference();}
  private final MemoryWorld world=new MemoryWorld();
  private final WorkSession work=new WorkSession(world);
  private final DnmsSkillAdapter adapter=new DnmsSkillAdapter(work);
@@ -33,6 +38,10 @@ public final class NaoSimulation {
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
  private Goal goal(Nao n){return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
  private void observe(Nao n,Action action,boolean success){
+  if(rewardEnabled&&(action==Action.COLLECT||action==Action.EXPLORE)){
+   double reward=action==Action.COLLECT?(success?5:0):(success?1:-1);
+   n.rewards.computeIfAbsent(action,k->new RewardEstimate()).record(reward);
+  }
   if(n.learning.attempts().getOrDefault(action,0)<100000)n.learning.observe(action,success);
   if(!success)return;
   var k=n.skill;
@@ -76,22 +85,22 @@ public final class NaoSimulation {
   var tmp=java.nio.file.Files.createTempFile(path.getParent(),"dnms-",".tmp");
   try{
    try(var out=new java.io.DataOutputStream(new java.io.BufferedOutputStream(java.nio.file.Files.newOutputStream(tmp)))){
-    out.writeUTF("DNMS-WORLD-2");out.writeInt(naos.size());world.write(out);work.write(out);
+    out.writeUTF("DNMS-WORLD-3");out.writeInt(naos.size());out.writeBoolean(rewardEnabled);world.write(out);work.write(out);
     for(var n:naos){out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);
-     var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);for(var action:Action.values()){out.writeInt(n.learning.attempts().getOrDefault(action,0));out.writeInt(n.learning.successes().getOrDefault(action,0));}}
+     var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);for(var action:Action.values()){out.writeInt(n.learning.attempts().getOrDefault(action,0));out.writeInt(n.learning.successes().getOrDefault(action,0));var reward=n.rewards.getOrDefault(action,new RewardEstimate());out.writeInt(reward.count());out.writeDouble(reward.mean());}}
    }
    java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
   }finally{java.nio.file.Files.deleteIfExists(tmp);}
  }
  public static NaoSimulation load(java.nio.file.Path path)throws java.io.IOException{
   try(var in=new java.io.DataInputStream(new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(path)))){
-   String version=in.readUTF();if(!version.equals("DNMS-WORLD-1")&&!version.equals("DNMS-WORLD-2"))throw new java.io.IOException("Unknown checkpoint format");
+   String version=in.readUTF();if(!version.equals("DNMS-WORLD-1")&&!version.equals("DNMS-WORLD-2")&&!version.equals("DNMS-WORLD-3"))throw new java.io.IOException("Unknown checkpoint format");
    int count=in.readInt();if(count<1||count>256)throw new java.io.IOException("Invalid population");
-   var sim=new NaoSimulation(count);sim.world.read(in);sim.work.read(in);
+   var sim=new NaoSimulation(count);if(version.equals("DNMS-WORLD-3"))sim.rewardEnabled=in.readBoolean();sim.world.read(in);sim.work.read(in);
    for(var n:sim.naos){n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
     if(n.collected<0||n.collected>8||n.built<0||n.built>n.collected||n.attempts<0||!Double.isFinite(n.travel)||n.travel<0||n.travel>=1)throw new java.io.IOException("Invalid NPC state");
     n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());
-    if(version.equals("DNMS-WORLD-2")){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());}n.learning.restore(a,b);}}
+    if(!version.equals("DNMS-WORLD-1")){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());if(version.equals("DNMS-WORLD-3")){var reward=new RewardEstimate();reward.restore(in.readInt(),in.readDouble());n.rewards.put(action,reward);}}n.learning.restore(a,b);}}
    if(in.read()!=-1)throw new java.io.IOException("Trailing checkpoint data");return sim;
   }catch(IllegalArgumentException e){throw new java.io.IOException("Invalid checkpoint",e);}
  }
