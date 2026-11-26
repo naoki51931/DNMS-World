@@ -119,6 +119,7 @@ public final class NaoLiveServer {
   return out.append("]}").toString();
  }
  */
+ private static boolean managedMode(){String token=System.getenv("DNMS_WORLD_TOKEN");return token!=null&&token.length()>=32;}
  synchronized String apiNpcs(){return org.nagineco.doppel.core.DnmsWorldHttpApi.snapshot(sim);}
  synchronized DnmsWorldApi.SpawnResult apiSpawn(UUID id,DnmsWorldApi.Position pos)throws java.io.IOException{
   var list=sim.npcs();
@@ -180,7 +181,7 @@ public final class NaoLiveServer {
   if(cmd.startsWith("skill:mode:")){try{skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(cmd.substring(11));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:source:")){try{int slot=Integer.parseInt(cmd.substring(13));if(slot<0||slot>=sim.states().size())return false;skillSource=slot;return true;}catch(NumberFormatException e){return false;}}
   if(cmd.equals("reward:on")||cmd.equals("reward:off")){sim.setRewardEnabled(cmd.equals("reward:on"));return true;}
-  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{sim=new NaoSimulation();skillSource=0;try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
+  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{if(managedMode())return false;sim=new NaoSimulation();skillSource=0;try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(managedMode())return false; /* DNMS-LEGACY: local generation disabled in managed mode. */ if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
   return true;
  }
  private static void send(HttpExchange e,int code,String type,byte[] data)throws java.io.IOException{
