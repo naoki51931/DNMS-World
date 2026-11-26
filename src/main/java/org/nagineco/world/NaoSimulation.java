@@ -1,5 +1,7 @@
 package org.nagineco.world;
 import java.util.*;
+import org.nagineco.doppel.NaoActionLearning;
+import org.nagineco.doppel.NaoActionLearning.Action;
 import org.nagineco.doppel.core.*;
 import org.nagineco.world.WorldAccess.*;
 /** Deterministic flat-world integration fixture; one independent plot per NPC. */
@@ -8,6 +10,7 @@ public final class NaoSimulation {
  public record State(int slot,Pos position,Goal goal,int collected,int built,long attempts){}
  private static final class Nao {
   final int slot; final Pos anchor; Pos position; int collected,built; long attempts; double travel;
+  final NaoActionLearning learning=new NaoActionLearning();
   PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
   Nao(int slot){this.slot=slot;anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
  }
@@ -29,23 +32,31 @@ public final class NaoSimulation {
  }
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
  private Goal goal(Nao n){return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
+ private void observe(Nao n,Action action,boolean success){
+  if(n.learning.attempts().getOrDefault(action,0)<100000)n.learning.observe(action,success);
+  if(!success)return;
+  var k=n.skill;
+  n.skill=new PhysicalSkillSync.Skill(Math.min(100,k.technique()+(action==Action.EXPLORE?0:0.2)),Math.min(100,k.coordination()+0.1),Math.min(100,k.proficiency()+(action==Action.EXPLORE?0:0.2)),Math.min(100,k.strength()+(action==Action.COLLECT?0.1:0)),Math.min(100,k.agility()+(action==Action.EXPLORE?0.1:0)),Math.min(100,k.endurance()+0.05));
+ }
+ public double confidence(int slot,Action action){return naos.get(slot).learning.confidence(action);}
  private void move(Nao n,Pos target){
   n.travel+=adapter.movementStep(n.skill);
   if(n.travel<1)return;n.travel-=1;
   int dx=Integer.compare(target.x(),n.position.x()),dz=Integer.compare(target.z(),n.position.z());
   var next=new Pos(n.position.x()+dx,1,n.position.z());
   if(dx==0)next=new Pos(n.position.x(),1,n.position.z()+dz);
-  if(world.block(next)==Block.AIR&&world.block(new Pos(next.x(),0,next.z()))!=Block.AIR)n.position=next;
+  boolean success=world.block(next)==Block.AIR&&world.block(new Pos(next.x(),0,next.z()))!=Block.AIR;
+  if(success)n.position=next;observe(n,Action.EXPLORE,success);
  }
  public void tick(){
   for(var n:naos){
    if(goal(n)==Goal.COLLECT){
     var staging=new Pos(n.anchor.x()+3,1,n.anchor.z());
     if(!n.position.equals(staging)){move(n,staging);continue;}
-    if(adapter.gather(n.slot,n.attempts++,n.skill,n.position,source(n,n.collected)))n.collected++;
+    boolean success=adapter.gather(n.slot,n.attempts++,n.skill,n.position,source(n,n.collected));if(success)n.collected++;observe(n,Action.COLLECT,success);
    }else if(goal(n)==Goal.BUILD){
     if(!n.position.equals(n.anchor)){move(n,n.anchor);continue;}
-    n.built=adapter.build(n.slot,n.attempts++,n.skill,n.position,n.anchor,n.built);
+    int previous=n.built;n.built=adapter.build(n.slot,n.attempts++,n.skill,n.position,n.anchor,n.built);observe(n,Action.BUILD,n.built>previous);
    }
   }
   world.advance();
@@ -65,21 +76,22 @@ public final class NaoSimulation {
   var tmp=java.nio.file.Files.createTempFile(path.getParent(),"dnms-",".tmp");
   try{
    try(var out=new java.io.DataOutputStream(new java.io.BufferedOutputStream(java.nio.file.Files.newOutputStream(tmp)))){
-    out.writeUTF("DNMS-WORLD-1");out.writeInt(naos.size());world.write(out);work.write(out);
+    out.writeUTF("DNMS-WORLD-2");out.writeInt(naos.size());world.write(out);work.write(out);
     for(var n:naos){out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);
-     var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);}
+     var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);for(var action:Action.values()){out.writeInt(n.learning.attempts().getOrDefault(action,0));out.writeInt(n.learning.successes().getOrDefault(action,0));}}
    }
    java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
   }finally{java.nio.file.Files.deleteIfExists(tmp);}
  }
  public static NaoSimulation load(java.nio.file.Path path)throws java.io.IOException{
   try(var in=new java.io.DataInputStream(new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(path)))){
-   if(!in.readUTF().equals("DNMS-WORLD-1"))throw new java.io.IOException("Unknown checkpoint format");
+   String version=in.readUTF();if(!version.equals("DNMS-WORLD-1")&&!version.equals("DNMS-WORLD-2"))throw new java.io.IOException("Unknown checkpoint format");
    int count=in.readInt();if(count<1||count>256)throw new java.io.IOException("Invalid population");
    var sim=new NaoSimulation(count);sim.world.read(in);sim.work.read(in);
    for(var n:sim.naos){n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
     if(n.collected<0||n.collected>8||n.built<0||n.built>n.collected||n.attempts<0||!Double.isFinite(n.travel)||n.travel<0||n.travel>=1)throw new java.io.IOException("Invalid NPC state");
-    n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());}
+    n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());
+    if(version.equals("DNMS-WORLD-2")){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());}n.learning.restore(a,b);}}
    if(in.read()!=-1)throw new java.io.IOException("Trailing checkpoint data");return sim;
   }catch(IllegalArgumentException e){throw new java.io.IOException("Invalid checkpoint",e);}
  }
