@@ -65,15 +65,28 @@ public final class NaoLiveServer {
   Files.createDirectories(to);
   try(var files=Files.list(from)){for(var p:files.toList())if(Files.isRegularFile(p)&&p.getFileName().toString().endsWith(".md"))Files.copy(p,to.resolve(p.getFileName()));}
  }
+ private static void forceFile(Path file)throws java.io.IOException{
+  try(var channel=java.nio.channels.FileChannel.open(file,StandardOpenOption.WRITE)){channel.force(true);}
+ }
  private void publish(String id)throws java.io.IOException{org.nagineco.doppel.core.CheckpointPolicy.publish(pointer(),id);}
  synchronized void checkpoint()throws java.io.IOException{
   if(savePath==null)return;
   String id=org.nagineco.doppel.core.CheckpointPolicy.generation(sim.ticks());
   var dir=history().resolve(id+".memory");
+  try{
   copyMemory(memoryDir,dir);
   Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n"+skillMode.name()+"\n"+skillSource+"\n");
   sim.save(history().resolve(id+".bin"));
+  try(var files=Files.list(dir)){for(var file:files.toList())forceFile(file);}
+  forceFile(history().resolve(id+".bin"));
   publish(id);
+  }catch(java.io.IOException e){
+   try{if(!Files.exists(pointer())||!Files.readString(pointer()).trim().equals(id)){
+    Files.deleteIfExists(history().resolve(id+".bin"));
+    if(Files.isDirectory(dir))try(var files=Files.walk(dir)){for(var file:files.sorted(java.util.Comparator.reverseOrder()).toList())Files.deleteIfExists(file);}
+   }}catch(java.io.IOException cleanup){e.addSuppressed(cleanup);}
+   throw e;
+  }
   try{sim.save(savePath);}catch(java.io.IOException e){System.err.println("Legacy mirror failed: "+e);}
  }
  private void restore(String id)throws java.io.IOException{
@@ -169,7 +182,7 @@ public final class NaoLiveServer {
   if(cmd.equals("checkpoint")){try{persistSpawn();return true;}catch(java.io.IOException e){return false;}}
   if(cmd.equals("mip:on")){mipEnabled=true;return true;}
   if(cmd.equals("mip:off")){mipEnabled=false;return true;}
-  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{integrate();mipDay=sim.ticks()/24000;return true;}catch(java.io.IOException e){return false;}}
+  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled||mipDay==sim.ticks()/24000)return false;try{integrate();mipDay=sim.ticks()/24000;return true;}catch(java.io.IOException e){return false;}}
   if(cmd.matches("mip:time:[0-9]{2}:[0-9]{2}")){try{mipTick=DnmsMemoryAdapter.clockTick(Integer.parseInt(cmd.substring(9,11)),Integer.parseInt(cmd.substring(12,14)));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:mode:")){try{skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(cmd.substring(11));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:source:")){try{int slot=Integer.parseInt(cmd.substring(13));if(slot<0||slot>=sim.states().size())return false;skillSource=slot;return true;}catch(NumberFormatException e){return false;}}
