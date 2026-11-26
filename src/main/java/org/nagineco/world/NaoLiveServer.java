@@ -14,6 +14,9 @@ public final class NaoLiveServer {
  private boolean mipEnabled=true;
  private int mipTick=18000;
  private long mipDay=-1;
+ private org.nagineco.doppel.core.PhysicalSkillSync.Mode skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.FULL;
+ private int skillSource=0;
+ private void integrate()throws java.io.IOException{memory.integrate();sim.synchronizeSkills(skillSource,skillMode);}
  private String memoryError="";
  private void newMemoryBranch()throws java.io.IOException{
   if(savePath==null)return;
@@ -22,7 +25,7 @@ public final class NaoLiveServer {
  }
  private void integrateDue()throws java.io.IOException{
   long tick=sim.ticks(),day=tick/24000;
-  if(memory!=null&&mipEnabled&&tick%24000>=mipTick&&mipDay!=day){memory.integrate();mipDay=day;}
+  if(memory!=null&&mipEnabled&&tick%24000>=mipTick&&mipDay!=day){integrate();mipDay=day;}
  }
 
  void configureSave(Path path)throws java.io.IOException{
@@ -47,7 +50,7 @@ public final class NaoLiveServer {
   String id=sim.ticks()+"-"+java.util.UUID.randomUUID();
   var dir=history().resolve(id+".memory");
   copyMemory(memoryDir,dir);
-  Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n");
+  Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n"+skillMode.name()+"\n"+skillSource+"\n");
   sim.save(history().resolve(id+".bin"));
   sim.save(savePath);publish(id);
  }
@@ -56,16 +59,19 @@ public final class NaoLiveServer {
   var restored=NaoSimulation.load(history().resolve(id+".bin"));
   var source=history().resolve(id+".memory");
   var settings=Files.readAllLines(source.resolve("settings.txt"));
-  if(settings.size()!=3||!settings.get(0).matches("true|false"))throw new java.io.IOException("Invalid MIP settings");
+  if((settings.size()!=3&&settings.size()!=5)||!settings.get(0).matches("true|false"))throw new java.io.IOException("Invalid MIP settings");
   int tick;long day;
   try{tick=Integer.parseInt(settings.get(1));day=Long.parseLong(settings.get(2));}catch(NumberFormatException e){throw new java.io.IOException(e);}
   if(tick<0||tick>=24000||day< -1||day>restored.ticks()/24000)throw new java.io.IOException("Invalid MIP clock");
+  var mode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.FULL;int sourceSlot=0;
+  if(settings.size()==5)try{mode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(settings.get(3));sourceSlot=Integer.parseInt(settings.get(4));}catch(IllegalArgumentException e){throw new java.io.IOException(e);}
+  if(sourceSlot<0||sourceSlot>=restored.states().size())throw new java.io.IOException("Invalid skill source");
   var dir=savePath.toAbsolutePath().getParent().resolve("memory-branches").resolve(java.util.UUID.randomUUID().toString());
   for(int i=1;i<=restored.states().size();i++)if(!Files.isRegularFile(source.resolve(String.format(java.util.Locale.ROOT,"nao_%02d.md",i))))throw new java.io.IOException("Missing journal");
   if(!Files.isRegularFile(source.resolve("nao_personality.md")))throw new java.io.IOException("Missing personality");
   copyMemory(source,dir);
   restored.save(savePath);publish(id);
-  sim=restored;memoryDir=dir;memory=new DnmsMemoryAdapter(dir);mipEnabled=Boolean.parseBoolean(settings.get(0));mipTick=tick;mipDay=day;memoryError="";
+  sim=restored;memoryDir=dir;memory=new DnmsMemoryAdapter(dir);mipEnabled=Boolean.parseBoolean(settings.get(0));mipTick=tick;mipDay=day;skillMode=mode;skillSource=sourceSlot;memoryError="";
  }
  synchronized boolean rewind(String id){
   if(savePath==null)return false;
@@ -84,7 +90,7 @@ public final class NaoLiveServer {
  if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
  if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
  synchronized String snapshot(){
-  var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
+  var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"skillMode\":\"").append(skillMode).append("\",\"skillSource\":").append(skillSource).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
   boolean first=true;
   for(var n:sim.states()){
    if(!first)out.append(',');first=false;var p=n.position();
@@ -97,9 +103,11 @@ public final class NaoLiveServer {
   if(cmd.equals("checkpoint")){try{checkpoint();return true;}catch(java.io.IOException e){return false;}}
   if(cmd.equals("mip:on")){mipEnabled=true;return true;}
   if(cmd.equals("mip:off")){mipEnabled=false;return true;}
-  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{memory.integrate();return true;}catch(java.io.IOException e){return false;}}
+  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{integrate();return true;}catch(java.io.IOException e){return false;}}
   if(cmd.matches("mip:time:[0-9]{2}:[0-9]{2}")){try{mipTick=DnmsMemoryAdapter.clockTick(Integer.parseInt(cmd.substring(9,11)),Integer.parseInt(cmd.substring(12,14)));return true;}catch(IllegalArgumentException e){return false;}}
-  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{sim=new NaoSimulation();try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
+  if(cmd.startsWith("skill:mode:")){try{skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(cmd.substring(11));return true;}catch(IllegalArgumentException e){return false;}}
+  if(cmd.startsWith("skill:source:")){try{int slot=Integer.parseInt(cmd.substring(13));if(slot<0||slot>=sim.states().size())return false;skillSource=slot;return true;}catch(NumberFormatException e){return false;}}
+  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{sim=new NaoSimulation();skillSource=0;try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
   return true;
  }
  private static void send(HttpExchange e,int code,String type,byte[] data)throws java.io.IOException{
