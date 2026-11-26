@@ -119,12 +119,21 @@ public final class NaoLiveServer {
  synchronized String apiNpcs(){return org.nagineco.doppel.core.DnmsWorldHttpApi.snapshot(sim);}
  synchronized DnmsWorldApi.SpawnResult apiSpawn(UUID id,DnmsWorldApi.Position pos)throws java.io.IOException{
   var list=sim.npcs();
-  if(list.stream().anyMatch(n->n.id().equals(id)))return DnmsWorldApi.SpawnResult.ALREADY_EXISTS;
+  if(list.stream().anyMatch(n->n.id().equals(id))){
+   persistSpawn();
+   return DnmsWorldApi.SpawnResult.ALREADY_EXISTS;
+  }
   int slot=list.size();
   if(slot>=256)return DnmsWorldApi.SpawnResult.CAPACITY;
   if(!pos.equals(new DnmsWorldApi.Position((slot%16)*12+4,1,(slot/16)*12+4)))return DnmsWorldApi.SpawnResult.INVALID_POSITION;
   if(memory!=null)memory.initialize(slot+1);
-  return sim.spawnNpc(id,pos);
+  var result=sim.spawnNpc(id,pos);
+  if(result==DnmsWorldApi.SpawnResult.CREATED)persistSpawn();
+  return result;
+ }
+ private void persistSpawn()throws java.io.IOException{
+  try{checkpoint();}
+  catch(java.io.IOException e){running=false;memoryError=e.toString();throw e;}
  }
  void registerWorldApi(HttpServer server,String token){org.nagineco.doppel.core.DnmsWorldHttpApi.register(server,token,this::apiNpcs,this::apiSpawn,worldId);}
  synchronized String snapshot(){
