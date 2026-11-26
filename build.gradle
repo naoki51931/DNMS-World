@@ -14,7 +14,8 @@ tasks.register('exportTerrain', JavaExec) {
     args file('client/public/terrain.json').absolutePath
 }
 
-def upstreamHashes = [DnmsWorldApi: '3a61bcfa5aa2b6d157af2b614f3176436fbcf39a',
+def upstreamHashes = [DnmsWorldHttpApi: '68c96e9d9a3ffc4d14949e13aca1f61ba33db880',
+DnmsWorldApi: '3a61bcfa5aa2b6d157af2b614f3176436fbcf39a',
 NaoBuildingPlan: 'd7e5d9c6981d540942ef713943aaedf037ef14b2',
 PhysicalSkillSync: 'c1c29257e2e9e1f2fbef05234ab4c5487431e9e7',
 PhysicalMovementPerformance: '0548c6a00d3548af1a77b84dc97294efa118c33c',
