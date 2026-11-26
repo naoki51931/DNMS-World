@@ -20,6 +20,9 @@ public final class NaoSimulation {
  }
  private MemoryDecision memoryDecision=new MemoryDecision(List.of());
  public void setMemoryDecision(MemoryDecision decision){memoryDecision=Objects.requireNonNull(decision);}
+ private long routeSearches,routeHits;
+ public long routeSearches(){return routeSearches;}
+ public long routeHits(){return routeHits;}
  private boolean rewardEnabled=false;
  public boolean rewardEnabled(){return rewardEnabled;}
  public void setRewardEnabled(boolean enabled){rewardEnabled=enabled;}
@@ -70,13 +73,14 @@ public final class NaoSimulation {
   if(n.travel<1)return;n.travel-=1;
   double caution=rewardEnabled?Math.max(0,-rewardPreference(n.slot,Action.EXPLORE))/10:0;
   if(n.route.isEmpty()||!target.equals(n.routeTarget)||n.routeRevision!=world.revision()||n.routeMemory!=memoryDecision||Double.compare(n.routeCaution,caution)!=0){
+   routeSearches++;
    n.route.clear();
    n.route.addAll(PathFinder.route(world,n.position,target,(from,to)->{
     String direction=to.x()>from.x()?"EAST":to.x()<from.x()?"WEST":to.z()>from.z()?"SOUTH":"NORTH";
     return (Math.max(0,-memoryDecision.score(direction))+memoryDecision.hazard(to))*(1+caution);
    }));
    n.routeTarget=target;n.routeRevision=world.revision();n.routeMemory=memoryDecision;n.routeCaution=caution;
-  }
+  }else routeHits++;
   var next=n.route.pollFirst();
   if(next!=null)n.position=next;
   observe(n,Action.EXPLORE,next!=null);
