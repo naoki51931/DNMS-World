@@ -27,7 +27,7 @@ public final class NaoLiveServer {
   events.addAll(memory.hazardEvents());
   return new MemoryDecision(events);
  }
- private void integrate()throws java.io.IOException{memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
+ private void integrate()throws java.io.IOException{if(sim.states().isEmpty())return;memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
  private String memoryError="";
  private boolean spawnSavePending;
  private void newMemoryBranch()throws java.io.IOException{
@@ -50,7 +50,7 @@ public final class NaoLiveServer {
   var identity=path.toAbsolutePath().resolveSibling("world-id.txt");
   Files.createDirectories(identity.getParent());
   try(var channel=java.nio.channels.FileChannel.open(identity.resolveSibling("world-id.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);var lock=channel.lock()){
-   if(!Files.exists(identity)){if(Files.exists(pointer()))throw new java.io.IOException("Missing world identity; restore world-id.txt from backup");var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
+   if(!Files.exists(identity)){if(Files.exists(pointer())||Files.isDirectory(history()))throw new java.io.IOException("Missing world identity; restore world-id.txt from backup");var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
    worldId=UUID.fromString(Files.readString(identity).trim());
   }
   var pointer=pointer();
@@ -100,7 +100,7 @@ public final class NaoLiveServer {
   if(tick<0||tick>=24000||day< -1||day>restored.ticks()/24000)throw new java.io.IOException("Invalid MIP clock");
   var mode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.FULL;int sourceSlot=0;
   if(settings.size()==5)try{mode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(settings.get(3));sourceSlot=Integer.parseInt(settings.get(4));}catch(IllegalArgumentException e){throw new java.io.IOException(e);}
-  if(sourceSlot<0||sourceSlot>=restored.states().size())throw new java.io.IOException("Invalid skill source");
+  if(sourceSlot<0||(restored.states().isEmpty()?sourceSlot!=0:sourceSlot>=restored.states().size()))throw new java.io.IOException("Invalid skill source");
   var dir=savePath.toAbsolutePath().getParent().resolve("memory-branches").resolve(java.util.UUID.randomUUID().toString());
   for(int i=1;i<=restored.states().size();i++)if(!Files.isRegularFile(source.resolve(String.format(java.util.Locale.ROOT,"nao_%02d.md",i))))throw new java.io.IOException("Missing journal");
   if(!Files.isRegularFile(source.resolve("nao_personality.md")))throw new java.io.IOException("Missing personality");
@@ -148,7 +148,7 @@ public final class NaoLiveServer {
   int slot=list.size();
   if(slot>=256)return DnmsWorldApi.SpawnResult.CAPACITY;
   if(!pos.equals(org.nagineco.doppel.core.WorldIdentityPolicy.anchor(slot)))return DnmsWorldApi.SpawnResult.INVALID_POSITION;
-  if(memory!=null)memory.initialize(slot+1);
+  try{if(memory!=null)memory.initialize(slot+1);}catch(java.io.IOException e){running=false;memoryError=e.toString();throw e;}
   var result=sim.spawnNpc(id,pos);
   if(result==DnmsWorldApi.SpawnResult.CREATED)persistSpawn();
   return result;
