@@ -27,6 +27,7 @@ public final class NaoSimulation {
  private long routeSearches,routeHits;
  public long routeSearches(){return routeSearches;}
  public long routeHits(){return routeHits;}
+ // DNMS-LEGACY: local reward policy pending authoritative DNMS learning interface.
  private boolean rewardEnabled=false;
  public boolean rewardEnabled(){return rewardEnabled;}
  public void setRewardEnabled(boolean enabled){rewardEnabled=enabled;}
@@ -54,11 +55,13 @@ public final class NaoSimulation {
  private final WorkSession work=new WorkSession(world);
  private final DnmsSkillAdapter adapter=new DnmsSkillAdapter(work);
  private final List<Nao> naos=new ArrayList<>();
+ // DNMS-LEGACY: standalone population bootstrap for tests; replace with DNMS-issued identities after integration.
  public NaoSimulation(){this(24);}
  public NaoSimulation(int count){
   if(count<1||count>256)throw new IllegalArgumentException("count");
   for(int i=0;i<count;i++)addNao();
  }
+ // DNMS-LEGACY: local identity allocation; keep world plot creation when DNMS becomes authoritative.
  public boolean addNao(){
    if(naos.size()>=256)return false;
    var n=new Nao(naos.size());naos.add(n);
@@ -68,6 +71,7 @@ public final class NaoSimulation {
  }
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
  private Pos foodSite(Nao n){return new Pos(n.anchor.x()-2,1,n.anchor.z());}
+ // DNMS-LEGACY: local goal policy; physical needs remain World responsibilities.
  private Goal goal(Nao n){if(n.health>0&&n.satiety<=12000&&n.food>0)return Goal.EAT;if(n.health>0&&n.food==0&&n.satiety<=18000&&ticks()>=n.nextHarvest)return Goal.FORAGE;if(n.health>0&&(n.sleeping||n.fatigue>=16000||(n.fatigue>=10000&&ticks()%24000>=12000&&ticks()%24000<22000)))return Goal.SLEEP;return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
  private void observe(Nao n,Action action,boolean success){
   n.lastAction=action;n.lastActionTick=ticks();
