@@ -11,6 +11,7 @@ public final class NaoLiveServer {
  private boolean running=true;
  private int speed=1;
  private Path savePath;
+ private UUID worldId;
  private DnmsMemoryAdapter memory;
  private Path memoryDir;
  private boolean mipEnabled=true;
@@ -38,6 +39,12 @@ public final class NaoLiveServer {
 
  void configureSave(Path path)throws java.io.IOException{
   savePath=path;
+  var identity=path.toAbsolutePath().resolveSibling("world-id.txt");
+  Files.createDirectories(identity.getParent());
+  try(var channel=java.nio.channels.FileChannel.open(identity.resolveSibling("world-id.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);var lock=channel.lock()){
+   if(!Files.exists(identity)){var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
+   worldId=UUID.fromString(Files.readString(identity).trim());
+  }
   var pointer=pointer();
   if(Files.exists(pointer)){restore(Files.readString(pointer).trim());}
   else {if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();}
@@ -161,6 +168,14 @@ public final class NaoLiveServer {
   app.configureSave(Path.of("world-data/latest.bin"));
   var server=HttpServer.create(new InetSocketAddress("127.0.0.1",8080),0);
   app.registerWorldApi(server,System.getenv("DNMS_WORLD_TOKEN"));
+  String token=System.getenv("DNMS_WORLD_TOKEN");
+  if(token!=null&&token.length()>=32)server.createContext("/api/v1/world",e->{
+   if(!e.getRequestURI().getPath().equals("/api/v1/world")){json(e,404,"{}");return;}
+   String auth=e.getRequestHeaders().getFirst("Authorization");
+   if(auth==null||!java.security.MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8),("Bearer "+token).getBytes(StandardCharsets.UTF_8))){json(e,401,"{}");return;}
+   if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}
+   json(e,200,"{\"worldId\":\""+app.worldId+"\"}");
+  });
   server.createContext("/api/state",e->{if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}json(e,200,app.snapshot());});
   server.createContext("/api/memory/search",e->{
    if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}
