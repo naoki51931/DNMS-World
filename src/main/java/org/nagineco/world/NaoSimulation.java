@@ -5,11 +5,11 @@ import org.nagineco.doppel.NaoActionLearning.Action;
 import org.nagineco.doppel.core.*;
 import org.nagineco.world.WorldAccess.*;
 /** Deterministic flat-world integration fixture; one independent plot per NPC. */
-public final class NaoSimulation {
+public final class NaoSimulation implements DnmsWorldApi {
  public enum Goal { COLLECT, BUILD, REST, EAT, FORAGE, SLEEP }
  public record State(int slot,Pos position,Goal goal,int collected,int built,long attempts){}
  private static final class Nao {
-  final int slot; final Pos anchor; Pos position; int collected,built; long attempts; double travel;
+  UUID id; final int slot; final Pos anchor; Pos position; int collected,built; long attempts; double travel;
   final ArrayDeque<Pos> route=new ArrayDeque<>();
   Pos routeTarget; long routeRevision=-1; double routeCaution; MemoryDecision routeMemory;
   int satiety=24000,food=3;
@@ -20,7 +20,7 @@ public final class NaoSimulation {
   final EnumMap<Action,RewardEstimate> rewards=new EnumMap<>(Action.class);
   final NaoActionLearning learning=new NaoActionLearning();
   PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
-  Nao(int slot){this.slot=slot;anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
+  Nao(int slot){this.slot=slot;id=UUID.randomUUID();anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
  }
  private MemoryDecision memoryDecision=new MemoryDecision(List.of());
  public void setMemoryDecision(MemoryDecision decision){memoryDecision=Objects.requireNonNull(decision);}
@@ -58,17 +58,28 @@ public final class NaoSimulation {
  // DNMS-LEGACY: standalone population bootstrap for tests; replace with DNMS-issued identities after integration.
  public NaoSimulation(){this(24);}
  public NaoSimulation(int count){
-  if(count<1||count>256)throw new IllegalArgumentException("count");
+  if(count<0||count>256)throw new IllegalArgumentException("count");
   for(int i=0;i<count;i++)addNao();
  }
  // DNMS-LEGACY: local identity allocation; keep world plot creation when DNMS becomes authoritative.
- public boolean addNao(){
+ public boolean addNao(){return addNao(UUID.randomUUID());}
+ private boolean addNao(UUID id){
    if(naos.size()>=256)return false;
-   var n=new Nao(naos.size());naos.add(n);
+   var n=new Nao(naos.size());n.id=id;naos.add(n);
    for(int x=-2;x<=5;x++)for(int z=-2;z<=2;z++)world.compareAndSet(new Pos(n.anchor.x()+x,0,n.anchor.z()+z),Block.AIR,Block.DIRT);
    for(int j=0;j<8;j++)world.compareAndSet(source(n,j),Block.AIR,Block.LOG);
    return true;
  }
+ @Override public SpawnResult spawnNpc(UUID id,Position position){
+  Objects.requireNonNull(id);Objects.requireNonNull(position);
+  if(naos.stream().anyMatch(n->n.id.equals(id)))return SpawnResult.ALREADY_EXISTS;
+  int slot=naos.size();if(slot>=256)return SpawnResult.CAPACITY;
+  // The current flat-world fixture supports only the next plot anchor.
+  if(!position.equals(new Position((slot%16)*12+4,1,(slot/16)*12+4)))return SpawnResult.INVALID_POSITION;
+  addNao(id);return SpawnResult.CREATED;
+ }
+ @Override public List<Npc> npcs(){return naos.stream().map(n->new Npc(n.id,new Position(n.position.x(),n.position.y(),n.position.z()),n.health)).toList();}
+ @Override public long worldTick(){return ticks();}
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
  private Pos foodSite(Nao n){return new Pos(n.anchor.x()-2,1,n.anchor.z());}
  // DNMS-LEGACY: local goal policy; physical needs remain World responsibilities.
@@ -149,8 +160,8 @@ public final class NaoSimulation {
   var tmp=java.nio.file.Files.createTempFile(path.getParent(),"dnms-",".tmp");
   try{
    try(var out=new java.io.DataOutputStream(new java.io.BufferedOutputStream(java.nio.file.Files.newOutputStream(tmp)))){
-    out.writeUTF("DNMS-WORLD-7");out.writeInt(naos.size());out.writeBoolean(rewardEnabled);world.write(out);work.write(out);
-    for(var n:naos){out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);out.writeDouble(n.health);out.writeUTF(n.lastAction==null?"":n.lastAction.name());out.writeLong(n.lastActionTick);out.writeInt(n.satiety);out.writeInt(n.food);out.writeLong(n.nextHarvest);out.writeInt(n.fatigue);out.writeBoolean(n.sleeping);
+    out.writeUTF("DNMS-WORLD-8");out.writeInt(naos.size());out.writeBoolean(rewardEnabled);world.write(out);work.write(out);
+    for(var n:naos){out.writeLong(n.id.getMostSignificantBits());out.writeLong(n.id.getLeastSignificantBits());out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);out.writeDouble(n.health);out.writeUTF(n.lastAction==null?"":n.lastAction.name());out.writeLong(n.lastActionTick);out.writeInt(n.satiety);out.writeInt(n.food);out.writeLong(n.nextHarvest);out.writeInt(n.fatigue);out.writeBoolean(n.sleeping);
      var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);for(var action:Action.values()){out.writeInt(n.learning.attempts().getOrDefault(action,0));out.writeInt(n.learning.successes().getOrDefault(action,0));var reward=n.rewards.getOrDefault(action,new RewardEstimate());out.writeInt(reward.count());out.writeDouble(reward.mean());}}
    }
    java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -166,11 +177,13 @@ public final class NaoSimulation {
     case "DNMS-WORLD-5" -> 5;
     case "DNMS-WORLD-6" -> 6;
     case "DNMS-WORLD-7" -> 7;
+    case "DNMS-WORLD-8" -> 8;
     default -> throw new java.io.IOException("Unknown checkpoint format");
    };
-   int count=in.readInt();if(count<1||count>256)throw new java.io.IOException("Invalid population");
+   int count=in.readInt();if(count<0||count>256||(version<8&&count==0))throw new java.io.IOException("Invalid population");
    var sim=new NaoSimulation(count);if(version>=3)sim.rewardEnabled=in.readBoolean();sim.world.read(in);sim.work.read(in);
-   for(var n:sim.naos){n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
+   var ids=new HashSet<UUID>();
+   for(var n:sim.naos){if(version>=8)n.id=new UUID(in.readLong(),in.readLong());else n.id=UUID.nameUUIDFromBytes(("dnms-world-legacy-slot:"+n.slot).getBytes(java.nio.charset.StandardCharsets.UTF_8));if(!ids.add(n.id))throw new java.io.IOException("Duplicate NPC identity");n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
     if(version>=4){n.health=in.readDouble();String action=in.readUTF();n.lastAction=action.isEmpty()?null:Action.valueOf(action);n.lastActionTick=in.readLong();if(!Double.isFinite(n.health)||n.health<0||n.health>20||n.lastActionTick< -1||n.lastActionTick>sim.ticks()||(n.lastAction==null)!=(n.lastActionTick==-1))throw new java.io.IOException("Invalid health state");}
     if(version>=5){n.satiety=in.readInt();n.food=in.readInt();if(n.satiety<0||n.satiety>24000||n.food<0||n.food>1000)throw new java.io.IOException("Invalid nutrition");}
     if(version>=6){n.nextHarvest=in.readLong();if(n.nextHarvest<0)throw new java.io.IOException("Invalid harvest time");}
