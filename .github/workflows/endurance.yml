@@ -1,0 +1,33 @@
+name: DNMS World Endurance
+on:
+  workflow_dispatch:
+jobs:
+  endurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Run endurance tests
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon test -PdnmsEndurance=true 2>&1 | tee endurance.log
+      - name: Generate quality report
+        if: always()
+        run: python3 scripts/endurance-report.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dnms-endurance-report
+          path: |
+            endurance.log
+            quality-report.md
+            build/reports/tests/test
+            build/test-results/test
