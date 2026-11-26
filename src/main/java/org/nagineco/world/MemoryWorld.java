@@ -16,4 +16,13 @@ public final class MemoryWorld implements WorldAccess {
     }
     public synchronized long tick() { return tick; }
     public synchronized void advance() { tick = Math.incrementExact(tick); }
+    synchronized void write(java.io.DataOutput out)throws java.io.IOException {
+        out.writeLong(tick);out.writeInt(blocks.size());
+        for(var e:blocks.entrySet()){var p=e.getKey();out.writeInt(p.x());out.writeInt(p.y());out.writeInt(p.z());out.writeUTF(e.getValue().name());}
+    }
+    synchronized void read(java.io.DataInput in)throws java.io.IOException {
+        long t=in.readLong();int n=in.readInt();if(t<0||n<0||n>1000000)throw new java.io.IOException("Invalid world");
+        blocks.clear();tick=t;
+        for(int i=0;i<n;i++)blocks.put(new Pos(in.readInt(),in.readInt(),in.readInt()),Block.valueOf(in.readUTF()));
+    }
 }
