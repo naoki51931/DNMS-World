@@ -90,7 +90,7 @@ public final class NaoLiveServer {
  if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
  if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
  synchronized String snapshot(){
-  var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"skillMode\":\"").append(skillMode).append("\",\"skillSource\":").append(skillSource).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
+  var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"rewardEnabled\":").append(sim.rewardEnabled()).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"skillMode\":\"").append(skillMode).append("\",\"skillSource\":").append(skillSource).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
   boolean first=true;
   for(var n:sim.states()){
    if(!first)out.append(',');first=false;var p=n.position();
@@ -107,6 +107,7 @@ public final class NaoLiveServer {
   if(cmd.matches("mip:time:[0-9]{2}:[0-9]{2}")){try{mipTick=DnmsMemoryAdapter.clockTick(Integer.parseInt(cmd.substring(9,11)),Integer.parseInt(cmd.substring(12,14)));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:mode:")){try{skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(cmd.substring(11));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:source:")){try{int slot=Integer.parseInt(cmd.substring(13));if(slot<0||slot>=sim.states().size())return false;skillSource=slot;return true;}catch(NumberFormatException e){return false;}}
+  if(cmd.equals("reward:on")||cmd.equals("reward:off")){sim.setRewardEnabled(cmd.equals("reward:on"));return true;}
   switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{sim=new NaoSimulation();skillSource=0;try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
   return true;
  }
