@@ -19,7 +19,7 @@ public final class NaoLiveServer {
   return out.append("]}").toString();
  }
  synchronized boolean command(String cmd){
-  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->sim=new NaoSimulation();case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
+  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->sim=new NaoSimulation();case "next"->{return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
   return true;
  }
  private static void send(HttpExchange e,int code,String type,byte[] data)throws java.io.IOException{
