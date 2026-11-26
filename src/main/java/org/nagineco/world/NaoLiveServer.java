@@ -33,7 +33,7 @@ public final class NaoLiveServer {
  }
  private void integrateDue()throws java.io.IOException{
   long tick=sim.ticks(),day=tick/24000;
-  if(memory!=null&&mipEnabled&&tick%24000>=mipTick&&mipDay!=day){integrate();mipDay=day;}
+  if(memory!=null&&org.nagineco.doppel.core.WorldProgressPolicy.integrationDue(mipEnabled,tick,mipTick,mipDay)){integrate();mipDay=day;}
  }
 
  void configureSave(Path path)throws java.io.IOException{
