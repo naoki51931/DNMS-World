@@ -90,3 +90,12 @@ DNMSの standalone はFabric非依存のCLI接続モジュール。Java 21、Gra
 
 ## 移管済み旧コードの削除
 共通HTTP API・RewardEstimate・SharedMemorySearch・MemoryDecisionのコメントアウト済み旧実装は削除済み。正式実装はDNMS core、Worldには互換Adapterのみ残す。過去のコメントアウト済みという記述は移管当時の履歴を示す。未移管の稼働中処理と管理モードの制限は維持する。CI・接続検証は未確認。
+
+
+## 世界ID・生成要求・個体台帳の連携
+DNMS standalone の `next-world root [expected-world-uuid]` は認証APIで世界IDを取得し、世界別 spawn.pending を使用して生成後 population.csv を更新する。旧 next は互換用。世界IDの前後照合は行うが、サーバー側の原子的な世界ID条件付き生成ではない。
+
+### 今後の実装
+- 世界ID条件付き生成・生成と保存の一貫性・台帳自動復元・初期24人の管理権限統合。
+- 世界保存・巻き戻し制御の共通化、既存セーブ互換性、実接続・回帰・256人負荷テスト。
+- CI未確認。共通コアへの移管は独立DNMS実行時の完全統合を意味しない。
