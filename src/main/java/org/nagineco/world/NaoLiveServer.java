@@ -12,6 +12,14 @@ public final class NaoLiveServer {
  private int speed=1;
  private Path savePath;
  private UUID worldId;
+ private UUID epoch=UUID.randomUUID();
+ private Path epochPath(){return savePath.toAbsolutePath().resolveSibling("timeline-id.txt");}
+ private void rotateEpoch()throws java.io.IOException{
+  UUID next=UUID.randomUUID();var tmp=Files.createTempFile(epochPath().getParent(),"timeline-",".tmp");
+  try{Files.writeString(tmp,next.toString());forceFile(tmp);Files.move(tmp,epochPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);epoch=next;}finally{Files.deleteIfExists(tmp);}
+ }
+ synchronized String identity(){return "{\"worldId\":\""+worldId+"\",\"epoch\":\""+epoch+"\"}";}
+
  private java.nio.channels.FileChannel saveLockChannel;
  private java.nio.channels.FileLock saveLock;
  private DnmsMemoryAdapter memory;
@@ -53,6 +61,7 @@ public final class NaoLiveServer {
    if(!Files.exists(identity)){if(Files.exists(pointer())||Files.isDirectory(history()))throw new java.io.IOException("Missing world identity; restore world-id.txt from backup");var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
    worldId=UUID.fromString(Files.readString(identity).trim());
   }
+  if(Files.exists(epochPath()))epoch=UUID.fromString(Files.readString(epochPath()).trim());else rotateEpoch();
   var pointer=pointer();
   if(Files.exists(pointer)){restore(Files.readString(pointer).trim());}
   else {if(Files.isDirectory(history())){try(var files=Files.list(history())){if(files.anyMatch(x->x.getFileName().toString().endsWith(".bin")))throw new java.io.IOException("Missing generation pointer; explicit recovery required");}}if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();}
@@ -112,7 +121,7 @@ public final class NaoLiveServer {
  }
  synchronized boolean rewind(String id){
   if(savePath==null)return false;
-  try{restore(id);running=false;return true;}catch(java.io.IOException e){System.err.println(e);return false;}
+  try{rotateEpoch();restore(id);running=false;return true;}catch(java.io.IOException e){System.err.println(e);return false;}
  }
  synchronized String checkpoints(){
   if(savePath==null||!Files.isDirectory(history()))return "[]";
@@ -157,7 +166,7 @@ public final class NaoLiveServer {
   try{checkpoint();spawnSavePending=false;memoryError="";}
   catch(java.io.IOException e){spawnSavePending=true;running=false;memoryError=e.toString();throw e;}
  }
- void registerWorldApi(HttpServer server,String token){org.nagineco.doppel.core.DnmsWorldHttpApi.register(server,token,this::apiNpcs,this::apiSpawn,worldId);}
+ void registerWorldApi(HttpServer server,String token){org.nagineco.doppel.core.DnmsWorldHttpApi.register(server,token,this::apiNpcs,this::apiSpawn,worldId,this,()->epoch);}
  synchronized String snapshot(){
   var out=new StringBuilder("{\"tick\":").append(sim.ticks()).append(",\"running\":").append(running).append(",\"speed\":").append(speed).append(",\"rewardEnabled\":").append(sim.rewardEnabled()).append(",\"mipEnabled\":").append(mipEnabled).append(",\"mipTick\":").append(mipTick).append(",\"mipDay\":").append(mipDay).append(",\"skillMode\":\"").append(skillMode).append("\",\"skillSource\":").append(skillSource).append(",\"memoryError\":").append(!memoryError.isEmpty()).append(",\"naos\":[");
   boolean first=true;
@@ -187,7 +196,7 @@ public final class NaoLiveServer {
   if(cmd.startsWith("skill:mode:")){try{skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(cmd.substring(11));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:source:")){try{int slot=Integer.parseInt(cmd.substring(13));if(slot<0||slot>=sim.states().size())return false;skillSource=slot;return true;}catch(NumberFormatException e){return false;}}
   if(cmd.equals("reward:on")||cmd.equals("reward:off")){sim.setRewardEnabled(cmd.equals("reward:on"));return true;}
-  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{if(managedMode())return false;sim=new NaoSimulation();skillSource=0;try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(managedMode())return false; /* DNMS-LEGACY: local generation disabled in managed mode. */ if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
+  switch(cmd){case "pause"->running=false;case "resume"->running=true;case "reset"->{if(managedMode())return false;try{if(savePath!=null)rotateEpoch();}catch(java.io.IOException e){return false;}sim=new NaoSimulation();skillSource=0;try{newMemoryBranch();}catch(java.io.IOException e){memory=null;running=false;return false;}}case "next"->{if(managedMode())return false; /* DNMS-LEGACY: local generation disabled in managed mode. */ if(sim.states().size()>=256)return false;try{if(memory!=null)memory.initialize(sim.states().size()+1);}catch(java.io.IOException e){return false;}return sim.addNao();}case "1","2","4"->speed=Integer.parseInt(cmd);default->{return false;}}
   return true;
  }
  private static void send(HttpExchange e,int code,String type,byte[] data)throws java.io.IOException{
@@ -206,7 +215,7 @@ public final class NaoLiveServer {
    String auth=e.getRequestHeaders().getFirst("Authorization");
    if(auth==null||!java.security.MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8),("Bearer "+token).getBytes(StandardCharsets.UTF_8))){json(e,401,"{}");return;}
    if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}
-   json(e,200,"{\"worldId\":\""+app.worldId+"\"}");
+   json(e,200,app.identity());
   });
   server.createContext("/api/state",e->{if(!e.getRequestMethod().equals("GET")){json(e,405,"{}");return;}json(e,200,app.snapshot());});
   server.createContext("/api/memory/search",e->{
