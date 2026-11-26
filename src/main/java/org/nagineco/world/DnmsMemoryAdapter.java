@@ -5,6 +5,7 @@ import java.util.*;
 import org.nagineco.patch.memoryintegration.MemoryIntegrationPatch;
 public final class DnmsMemoryAdapter {
  private final Path dir;
+ private SharedMemorySearch search;
  public DnmsMemoryAdapter(Path dir){this.dir=dir;}
  public void initialize(int count)throws IOException{
   if(count<1||count>256)throw new IllegalArgumentException("count");
@@ -23,7 +24,8 @@ public final class DnmsMemoryAdapter {
   String line=String.format(Locale.ROOT,"- day=%d tick=%d position=(%d,%d,%d) action=%s emotion=NEUTRAL reason=%s%n",tick/24000+1,tick%24000,p.x(),p.y(),p.z(),action,reason);
   Files.writeString(journal(after.slot()),line,StandardOpenOption.APPEND);
  }
- public String integrate()throws IOException{return MemoryIntegrationPatch.integrate(dir);}
+ public String integrate()throws IOException{String result=MemoryIntegrationPatch.integrate(dir);search=null;return result;}
+ public List<SharedMemorySearch.Event> search(String query,int limit)throws IOException{if(search==null)search=new SharedMemorySearch(dir.resolve("nao_integrated_memory.md"));return search.search(query,limit);}
  public static int clockTick(int hour,int minute){
   if(hour<0||hour>23||minute<0||minute>59)throw new IllegalArgumentException("clock");
   return Math.floorMod((hour*60+minute-360)*24000/1440,24000);
