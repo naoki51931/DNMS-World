@@ -43,7 +43,7 @@ class WorldEnduranceTest {
         }
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "longRunningPopulation days={0}")
     @ValueSource(ints = {7, 30})
     @EnabledIfSystemProperty(named="dnms.endurance", matches="true")
     void longRunningPopulation(int days) throws Exception {
@@ -83,6 +83,13 @@ class WorldEnduranceTest {
                 assertTrue(n.built() <= n.collected());
             }
             sim.save(save);
+            if (day == 1 || day == days) {
+                Path damaged = dir.resolve("damaged.bin");
+                byte[] original = Files.readAllBytes(save);
+                Files.write(damaged, Arrays.copyOf(original, Math.min(8, original.length)));
+                assertThrows(java.io.IOException.class, () -> NaoSimulation.load(damaged));
+                assertArrayEquals(original, Files.readAllBytes(save));
+            }
             var restored = NaoSimulation.load(save);
             assertEquals(sim.states(), restored.states());
             assertEquals(sim.npcs(), restored.npcs());
