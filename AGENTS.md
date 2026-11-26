@@ -49,3 +49,7 @@ DNMS本体の DnmsWorldApi を再利用し、NaoSimulation が生成・一覧・
 19. Minecraft版との共通AI互換性検証
 20. 無料ゲームとしての一般公開
 
+
+
+## 共通World HTTP APIの責務分離
+DNMS本体の `org.nagineco.doppel.core.DnmsWorldHttpApi` をHTTP認証・入力解析・JSON応答の唯一の実装元とする。DNMS-Worldはハッシュ検証付きで取得し、旧HTTP実装をDNMS-LEGACYコメントとして無効化する。世界固有の生成・座標・同期・記憶ジャーナル準備はAdapterに残す。Minecraft側HTTP公開、DNMS側クライアント、管理権限一本化、CI検証は今後の実装。
