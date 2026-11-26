@@ -19,6 +19,19 @@ public final class SharedMemorySearch {
    for(String key:List.of(e.action(),e.emotion(),e.reason()))index.computeIfAbsent(key,k->new BitSet()).set(id);
   }}
  }
+ public List<Event> hazardEvents(){
+  var unique=new LinkedHashMap<org.nagineco.world.WorldAccess.Pos,Event>();
+  for(var e:events){
+   if(!e.action().equals("STAY")||!e.emotion().equals("AFRAID")||!e.reason().equals("SAFETY"))continue;
+   String[] xyz=e.position().split(",");
+   if(xyz.length!=3)continue;
+   try{
+    var p=new org.nagineco.world.WorldAccess.Pos(Integer.parseInt(xyz[0].trim()),Integer.parseInt(xyz[1].trim()),Integer.parseInt(xyz[2].trim()));
+    unique.put(p,e);
+   }catch(NumberFormatException ignored){}
+  }
+  return List.copyOf(unique.values());
+ }
  public List<Event> search(String query,int limit){
   if(limit<1||limit>100)throw new IllegalArgumentException("limit");
   String q=Normalizer.normalize(query,Normalizer.Form.NFKC).toUpperCase(Locale.ROOT);
