@@ -66,14 +66,13 @@ public final class NaoSimulation {
  private void move(Nao n,Pos target){
   n.travel+=adapter.movementStep(n.skill);
   if(n.travel<1)return;n.travel-=1;
-  int dx=Integer.compare(target.x(),n.position.x()),dz=Integer.compare(target.z(),n.position.z());
-  var candidates=new ArrayList<Pos>();
-  if(dx!=0)candidates.add(new Pos(n.position.x()+dx,1,n.position.z()));
-  if(dz!=0)candidates.add(new Pos(n.position.x(),1,n.position.z()+dz));
-  candidates.removeIf(p->world.block(p)!=Block.AIR||world.block(new Pos(p.x(),0,p.z()))==Block.AIR);
-  candidates.sort(Comparator.comparingDouble((Pos p)->memoryDecision.score(p.x()>n.position.x()?"EAST":p.x()<n.position.x()?"WEST":p.z()>n.position.z()?"SOUTH":"NORTH")).reversed());
-  boolean success=!candidates.isEmpty();
-  if(success)n.position=candidates.get(0);observe(n,Action.EXPLORE,success);
+  double caution=rewardEnabled?Math.max(0,-rewardPreference(n.slot,Action.EXPLORE))/10:0;
+  var next=PathFinder.next(world,n.position,target,(from,to)->{
+   String direction=to.x()>from.x()?"EAST":to.x()<from.x()?"WEST":to.z()>from.z()?"SOUTH":"NORTH";
+   return Math.max(0,-memoryDecision.score(direction))*(1+caution);
+  });
+  if(next.isPresent())n.position=next.get();
+  observe(n,Action.EXPLORE,next.isPresent());
  }
  public void tick(){
   for(var n:naos){
