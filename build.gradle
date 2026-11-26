@@ -15,7 +15,7 @@ tasks.register('exportTerrain', JavaExec) {
 }
 
 def upstreamHashes = [RewardEstimate: '8a7f879f49af9ca8f9bdc9c6c49ca1385fb1b515',
-SharedMemorySearch: '1deaff4fcb65895621dd254f86508c54b9b90b1b',
+SharedMemorySearch: '12abe5091fdbebcbce327cad2c0713fe5be986a9',
 MemoryDecision: '13b939d657f1e14d2d5bc2c771766542787fcbeb',
 RewardEstimate: '8a7f879f49af9ca8f9bdc9c6c49ca1385fb1b515',
 SharedMemorySearch: '1deaff4fcb65895621dd254f86508c54b9b90b1b',
