@@ -91,8 +91,7 @@ public final class NaoSimulation implements DnmsWorldApi {
   }
   if(n.learning.attempts().getOrDefault(action,0)<100000)n.learning.observe(action,success);
   if(!success)return;
-  var k=n.skill;
-  n.skill=new PhysicalSkillSync.Skill(Math.min(100,k.technique()+(action==Action.EXPLORE?0:0.2)),Math.min(100,k.coordination()+0.1),Math.min(100,k.proficiency()+(action==Action.EXPLORE?0:0.2)),Math.min(100,k.strength()+(action==Action.COLLECT?0.1:0)),Math.min(100,k.agility()+(action==Action.EXPLORE?0.1:0)),Math.min(100,k.endurance()+0.05));
+  n.skill=WorldProgressPolicy.grow(n.skill,action==Action.EXPLORE,action==Action.COLLECT);
  }
  public double confidence(int slot,Action action){return naos.get(slot).learning.confidence(action);}
  private void move(Nao n,Pos target){
