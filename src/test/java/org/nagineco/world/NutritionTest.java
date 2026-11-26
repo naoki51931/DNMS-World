@@ -16,11 +16,16 @@ class NutritionTest {
   for(int i=0;i<12000;i++){sim.tick();restored.tick();}
   assertEquals(sim.satiety(0),restored.satiety(0));assertEquals(sim.food(0),restored.food(0));
  }
- @Test void starvation(){
+ @Test void renewableFoodAndRestore()throws Exception{
   var sim=new NaoSimulation(1);
-  for(int i=0;i<60401;i++)sim.tick();
-  assertEquals(0,sim.food(0));assertEquals(0,sim.satiety(0));
-  assertTrue(sim.health(0)<20);
-  sim.supplyFood(0,1);sim.tick();assertEquals(12000,sim.satiety(0));
+  for(int i=0;i<45000;i++)sim.tick();
+  assertTrue(sim.food(0)>0);
+  var file=dir.resolve("forage.bin");sim.save(file);
+  var restored=NaoSimulation.load(file);
+  for(int i=0;i<72000;i++){sim.tick();restored.tick();}
+  assertEquals(20.0,sim.health(0));
+  assertEquals(sim.states(),restored.states());
+  assertEquals(sim.food(0),restored.food(0));
+  assertEquals(sim.satiety(0),restored.satiety(0));
  }
 }
