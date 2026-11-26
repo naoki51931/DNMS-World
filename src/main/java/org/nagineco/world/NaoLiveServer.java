@@ -27,6 +27,7 @@ public final class NaoLiveServer {
  }
  private void integrate()throws java.io.IOException{memory.integrate();sim.setMemoryDecision(decision(memory));sim.synchronizeSkills(skillSource,skillMode);}
  private String memoryError="";
+ private boolean spawnSavePending;
  private void newMemoryBranch()throws java.io.IOException{
   if(savePath==null)return;
   var dir=savePath.toAbsolutePath().getParent().resolve("memory-branches").resolve(java.util.UUID.randomUUID().toString());
@@ -123,17 +124,18 @@ public final class NaoLiveServer {
    persistSpawn();
    return DnmsWorldApi.SpawnResult.ALREADY_EXISTS;
   }
+  if(spawnSavePending)throw new java.io.IOException("Pending spawn persistence must be retried");
   int slot=list.size();
   if(slot>=256)return DnmsWorldApi.SpawnResult.CAPACITY;
-  if(!pos.equals(new DnmsWorldApi.Position((slot%16)*12+4,1,(slot/16)*12+4)))return DnmsWorldApi.SpawnResult.INVALID_POSITION;
+  if(!pos.equals(org.nagineco.doppel.core.WorldIdentityPolicy.anchor(slot)))return DnmsWorldApi.SpawnResult.INVALID_POSITION;
   if(memory!=null)memory.initialize(slot+1);
   var result=sim.spawnNpc(id,pos);
   if(result==DnmsWorldApi.SpawnResult.CREATED)persistSpawn();
   return result;
  }
  private void persistSpawn()throws java.io.IOException{
-  try{checkpoint();}
-  catch(java.io.IOException e){running=false;memoryError=e.toString();throw e;}
+  try{checkpoint();spawnSavePending=false;memoryError="";}
+  catch(java.io.IOException e){spawnSavePending=true;running=false;memoryError=e.toString();throw e;}
  }
  void registerWorldApi(HttpServer server,String token){org.nagineco.doppel.core.DnmsWorldHttpApi.register(server,token,this::apiNpcs,this::apiSpawn,worldId);}
  synchronized String snapshot(){
@@ -151,12 +153,13 @@ public final class NaoLiveServer {
   sim.damage(slot,amount);return true;
  }
  synchronized boolean command(String cmd){
+  if(spawnSavePending&&!cmd.equals("checkpoint")&&!cmd.equals("pause"))return false;
   if(cmd.startsWith("damage:")){
    String[] parts=cmd.split(":",-1);if(parts.length!=3)return false;
    try{return damage(Integer.parseInt(parts[1]),Double.parseDouble(parts[2]));}catch(IllegalArgumentException|java.io.IOException e){return false;}
   }
   if(cmd.startsWith("rewind:"))return rewind(cmd.substring(7));
-  if(cmd.equals("checkpoint")){try{checkpoint();return true;}catch(java.io.IOException e){return false;}}
+  if(cmd.equals("checkpoint")){try{persistSpawn();return true;}catch(java.io.IOException e){return false;}}
   if(cmd.equals("mip:on")){mipEnabled=true;return true;}
   if(cmd.equals("mip:off")){mipEnabled=false;return true;}
   if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{integrate();return true;}catch(java.io.IOException e){return false;}}
