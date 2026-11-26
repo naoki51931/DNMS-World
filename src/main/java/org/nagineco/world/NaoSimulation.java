@@ -51,6 +51,12 @@ public final class NaoSimulation {
   world.advance();
  }
  public List<State> states(){return naos.stream().map(n->new State(n.slot,n.position,goal(n),n.collected,n.built,n.attempts)).toList();}
+ public PhysicalSkillSync.Skill skill(int slot){return naos.get(slot).skill;}
+ public void setSkill(int slot,PhysicalSkillSync.Skill skill){naos.get(slot).skill=Objects.requireNonNull(skill);}
+ public void synchronizeSkills(int source,PhysicalSkillSync.Mode mode){
+  var synced=PhysicalSkillSync.broadcast(naos.stream().map(n->n.skill).toList(),source,mode,1.0);
+  for(int i=0;i<naos.size();i++)naos.get(i).skill=synced.get(i);
+ }
  public long ticks(){return world.tick();}
  public int inventory(int slot){return work.count("nao-"+slot,Block.LOG);}
  public Block block(Pos p){return world.block(p);}
