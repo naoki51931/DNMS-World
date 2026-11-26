@@ -12,6 +12,8 @@ public final class NaoLiveServer {
  private int speed=1;
  private Path savePath;
  private UUID worldId;
+ private java.nio.channels.FileChannel saveLockChannel;
+ private java.nio.channels.FileLock saveLock;
  private DnmsMemoryAdapter memory;
  private Path memoryDir;
  private boolean mipEnabled=true;
@@ -40,10 +42,14 @@ public final class NaoLiveServer {
 
  void configureSave(Path path)throws java.io.IOException{
   savePath=path;
+  Files.createDirectories(path.toAbsolutePath().getParent());
+  saveLockChannel=java.nio.channels.FileChannel.open(path.toAbsolutePath().resolveSibling("server.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);
+  try{saveLock=saveLockChannel.tryLock();if(saveLock==null)throw new java.io.IOException("World already open");}
+  catch(java.io.IOException|RuntimeException e){saveLockChannel.close();throw e;}
   var identity=path.toAbsolutePath().resolveSibling("world-id.txt");
   Files.createDirectories(identity.getParent());
   try(var channel=java.nio.channels.FileChannel.open(identity.resolveSibling("world-id.lock"),StandardOpenOption.CREATE,StandardOpenOption.WRITE);var lock=channel.lock()){
-   if(!Files.exists(identity)){var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
+   if(!Files.exists(identity)){if(Files.exists(pointer()))throw new java.io.IOException("Missing world identity; restore world-id.txt from backup");var tmp=Files.createTempFile(identity.getParent(),"identity-",".tmp");try{Files.writeString(tmp,UUID.randomUUID().toString());Files.move(tmp,identity,StandardCopyOption.ATOMIC_MOVE);}finally{Files.deleteIfExists(tmp);}}
    worldId=UUID.fromString(Files.readString(identity).trim());
   }
   var pointer=pointer();
@@ -118,7 +124,7 @@ public final class NaoLiveServer {
  synchronized DnmsWorldApi.SpawnResult apiSpawn(UUID id,DnmsWorldApi.Position pos)throws java.io.IOException{
   var list=sim.npcs();
   if(list.stream().anyMatch(n->n.id().equals(id))){
-   persistSpawn();
+   if(spawnSavePending)persistSpawn();
    return DnmsWorldApi.SpawnResult.ALREADY_EXISTS;
   }
   if(spawnSavePending)throw new java.io.IOException("Pending spawn persistence must be retried");
@@ -159,7 +165,7 @@ public final class NaoLiveServer {
   if(cmd.equals("checkpoint")){try{persistSpawn();return true;}catch(java.io.IOException e){return false;}}
   if(cmd.equals("mip:on")){mipEnabled=true;return true;}
   if(cmd.equals("mip:off")){mipEnabled=false;return true;}
-  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{integrate();return true;}catch(java.io.IOException e){return false;}}
+  if(cmd.equals("mip:run")){if(memory==null||!mipEnabled)return false;try{integrate();mipDay=sim.ticks()/24000;return true;}catch(java.io.IOException e){return false;}}
   if(cmd.matches("mip:time:[0-9]{2}:[0-9]{2}")){try{mipTick=DnmsMemoryAdapter.clockTick(Integer.parseInt(cmd.substring(9,11)),Integer.parseInt(cmd.substring(12,14)));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:mode:")){try{skillMode=org.nagineco.doppel.core.PhysicalSkillSync.Mode.parse(cmd.substring(11));return true;}catch(IllegalArgumentException e){return false;}}
   if(cmd.startsWith("skill:source:")){try{int slot=Integer.parseInt(cmd.substring(13));if(slot<0||slot>=sim.states().size())return false;skillSource=slot;return true;}catch(NumberFormatException e){return false;}}
@@ -203,7 +209,7 @@ public final class NaoLiveServer {
    send(e,200,type,Files.readAllBytes(path));
   });
   var timer=Executors.newSingleThreadScheduledExecutor();timer.scheduleAtFixedRate(app::advance,0,50,TimeUnit.MILLISECONDS);
-  server.start();Runtime.getRuntime().addShutdownHook(new Thread(()->{timer.shutdownNow();server.stop(0);app.save();}));
+  server.start();Runtime.getRuntime().addShutdownHook(new Thread(()->{timer.shutdownNow();server.stop(0);app.save();try{app.saveLock.release();app.saveLockChannel.close();}catch(java.io.IOException e){System.err.println(e);}}));
   System.out.println("DNMS live: http://127.0.0.1:8080/replay.html?live=1");
  }
 }
