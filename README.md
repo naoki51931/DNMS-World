@@ -16,3 +16,14 @@ Minecraft protocol and save-format compatibility are not promised. Existing Fabr
 
 ## Status
 Initial development. No playable release yet.
+
+## Browser preview
+With Java 21, Gradle 8.10.2 and Node 22 installed, run:
+
+```sh
+gradle exportTerrain
+cd client
+npm install
+npm run dev -- --host 0.0.0.0
+```
+Open the URL printed by Vite. This preview renders Java-generated terrain; no NPCs or player movement yet.
