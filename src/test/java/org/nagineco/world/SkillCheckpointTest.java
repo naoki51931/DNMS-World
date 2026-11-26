@@ -17,17 +17,20 @@ class SkillCheckpointTest {
   sim.save(dir.resolve("skill.bin"));assertEquals(source,NaoSimulation.load(dir.resolve("skill.bin")).skill(255));
  }
  @Test void restoreSettingsAndMemory()throws Exception{
-  var path=dir.resolve("latest.bin");var a=new NaoLiveServer();a.configureSave(path);
+  var path=dir.resolve("latest.bin");String id;Path journal;
+  try(var a=new NaoLiveServer()){a.configureSave(path);
   assertTrue(a.command("skill:mode:TECHNIQUE"));assertTrue(a.command("skill:source:23"));
   assertTrue(a.command("mip:time:06:00"));for(int i=0;i<100;i++)a.advance();
-  a.checkpoint();var id=Files.readString(dir.resolve("latest-generation.txt"));
-  var journal=dir.resolve("history").resolve(id+".memory").resolve("nao_01.md");
+  a.checkpoint();id=Files.readString(dir.resolve("latest-generation.txt"));
+  journal=dir.resolve("history").resolve(id+".memory").resolve("nao_01.md");
   assertTrue(Files.readString(journal).contains("- day="));
-  var b=new NaoLiveServer();b.configureSave(path);
+  }
+  try(var b=new NaoLiveServer()){b.configureSave(path);
   assertTrue(b.snapshot().contains("\"skillMode\":\"TECHNIQUE\""));
   assertTrue(b.snapshot().contains("\"skillSource\":23"));
   assertTrue(b.snapshot().contains("\"mipDay\":0"));
   assertTrue(b.command("rewind:"+id));
   Files.delete(journal);assertFalse(b.command("rewind:"+id));
+  }
  }
 }
