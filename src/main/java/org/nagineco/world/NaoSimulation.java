@@ -115,7 +115,7 @@ public final class NaoSimulation {
     if(version.equals("DNMS-WORLD-4")){n.health=in.readDouble();String action=in.readUTF();n.lastAction=action.isEmpty()?null:Action.valueOf(action);n.lastActionTick=in.readLong();if(!Double.isFinite(n.health)||n.health<0||n.health>20||n.lastActionTick< -1||n.lastActionTick>sim.ticks()||(n.lastAction==null)!=(n.lastActionTick==-1))throw new java.io.IOException("Invalid health state");}
     if(n.collected<0||n.collected>8||n.built<0||n.built>n.collected||n.attempts<0||!Double.isFinite(n.travel)||n.travel<0||n.travel>=1)throw new java.io.IOException("Invalid NPC state");
     n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());
-    if(!version.equals("DNMS-WORLD-1")){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());if(version.equals("DNMS-WORLD-3")){var reward=new RewardEstimate();reward.restore(in.readInt(),in.readDouble());n.rewards.put(action,reward);}}n.learning.restore(a,b);}}
+    if(!version.equals("DNMS-WORLD-1")){var a=new EnumMap<Action,Integer>(Action.class);var b=new EnumMap<Action,Integer>(Action.class);for(var action:Action.values()){a.put(action,in.readInt());b.put(action,in.readInt());if(version.equals("DNMS-WORLD-3")||version.equals("DNMS-WORLD-4")){var reward=new RewardEstimate();reward.restore(in.readInt(),in.readDouble());n.rewards.put(action,reward);}}n.learning.restore(a,b);}}
    if(in.read()!=-1)throw new java.io.IOException("Trailing checkpoint data");return sim;
   }catch(IllegalArgumentException e){throw new java.io.IOException("Invalid checkpoint",e);}
  }
