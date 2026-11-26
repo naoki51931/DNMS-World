@@ -7,3 +7,5 @@ dist/
 client/public/terrain.json
 
 client/public/nao-replay.json
+
+world-data/
