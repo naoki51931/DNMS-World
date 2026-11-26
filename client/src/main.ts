@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {benchmarkNpcRendering} from './npc-benchmark';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {step, type Body} from './physics';
 type Block=[number,number,number,string];
@@ -11,6 +12,12 @@ async function start(){
  const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,500);
  camera.position.set(48,35,48);
  const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);document.body.appendChild(renderer.domElement);
+ if(new URLSearchParams(location.search).get('benchmark')==='npc'){
+  status.textContent='NPC rendering benchmark running...';
+  try{const results=await benchmarkNpcRendering(renderer);status.textContent=JSON.stringify(results);console.table(results);}
+  finally{renderer.dispose();}
+  return;
+ }
  const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(16,2,16);controls.enableDamping=true;controls.update();
  scene.add(new THREE.HemisphereLight(0xffffff,0x596344,2));
  const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(20,40,10);scene.add(light);
