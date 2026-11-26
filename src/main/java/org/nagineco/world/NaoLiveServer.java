@@ -10,6 +10,7 @@ public final class NaoLiveServer {
  private int speed=1;
  private Path savePath;
  private DnmsMemoryAdapter memory;
+ private Path memoryDir;
  private boolean mipEnabled=true;
  private int mipTick=18000;
  private long mipDay=-1;
@@ -17,7 +18,7 @@ public final class NaoLiveServer {
  private void newMemoryBranch()throws java.io.IOException{
   if(savePath==null)return;
   var dir=savePath.toAbsolutePath().getParent().resolve("memory-branches").resolve(java.util.UUID.randomUUID().toString());
-  var next=new DnmsMemoryAdapter(dir);next.initialize(sim.states().size());memory=next;mipDay=-1;
+  var next=new DnmsMemoryAdapter(dir);next.initialize(sim.states().size());memory=next;memoryDir=dir;mipDay=-1;
  }
  private void integrateDue()throws java.io.IOException{
   long tick=sim.ticks(),day=tick/24000;
@@ -25,28 +26,61 @@ public final class NaoLiveServer {
  }
 
  void configureSave(Path path)throws java.io.IOException{
-  savePath=path;if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();checkpoint();
+  savePath=path;
+  var pointer=pointer();
+  if(Files.exists(pointer)){restore(Files.readString(pointer).trim());}
+  else {if(Files.exists(path))sim=NaoSimulation.load(path);newMemoryBranch();}
+  checkpoint();
  }
  private Path history(){return savePath.toAbsolutePath().getParent().resolve("history");}
+ private Path pointer(){return savePath.toAbsolutePath().resolveSibling("latest-generation.txt");}
+ private static void copyMemory(Path from,Path to)throws java.io.IOException{
+  Files.createDirectories(to);
+  try(var files=Files.list(from)){for(var p:files.toList())if(Files.isRegularFile(p)&&p.getFileName().toString().endsWith(".md"))Files.copy(p,to.resolve(p.getFileName()));}
+ }
+ private void publish(String id)throws java.io.IOException{
+  var tmp=Files.createTempFile(pointer().getParent(),"generation-",".tmp");
+  try{Files.writeString(tmp,id);Files.move(tmp,pointer(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}finally{Files.deleteIfExists(tmp);}
+ }
  synchronized void checkpoint()throws java.io.IOException{
   if(savePath==null)return;
-  sim.save(history().resolve(sim.ticks()+"-"+java.util.UUID.randomUUID()+".bin"));sim.save(savePath);
+  String id=sim.ticks()+"-"+java.util.UUID.randomUUID();
+  var dir=history().resolve(id+".memory");
+  copyMemory(memoryDir,dir);
+  Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n");
+  sim.save(history().resolve(id+".bin"));
+  sim.save(savePath);publish(id);
+ }
+ private void restore(String id)throws java.io.IOException{
+  if(!id.matches("[0-9]+-[a-f0-9-]{36}"))throw new java.io.IOException("Invalid generation");
+  var restored=NaoSimulation.load(history().resolve(id+".bin"));
+  var source=history().resolve(id+".memory");
+  var settings=Files.readAllLines(source.resolve("settings.txt"));
+  if(settings.size()!=3||!settings.get(0).matches("true|false"))throw new java.io.IOException("Invalid MIP settings");
+  int tick;long day;
+  try{tick=Integer.parseInt(settings.get(1));day=Long.parseLong(settings.get(2));}catch(NumberFormatException e){throw new java.io.IOException(e);}
+  if(tick<0||tick>=24000||day< -1||day>restored.ticks()/24000)throw new java.io.IOException("Invalid MIP clock");
+  var dir=savePath.toAbsolutePath().getParent().resolve("memory-branches").resolve(java.util.UUID.randomUUID().toString());
+  for(int i=1;i<=restored.states().size();i++)if(!Files.isRegularFile(source.resolve(String.format(java.util.Locale.ROOT,"nao_%02d.md",i))))throw new java.io.IOException("Missing journal");
+  if(!Files.isRegularFile(source.resolve("nao_personality.md")))throw new java.io.IOException("Missing personality");
+  copyMemory(source,dir);
+  restored.save(savePath);publish(id);
+  sim=restored;memoryDir=dir;memory=new DnmsMemoryAdapter(dir);mipEnabled=Boolean.parseBoolean(settings.get(0));mipTick=tick;mipDay=day;memoryError="";
  }
  synchronized boolean rewind(String id){
-  if(savePath==null||!id.matches("[0-9]+-[a-f0-9-]{36}"))return false;
-  try{var restored=NaoSimulation.load(history().resolve(id+".bin"));restored.save(savePath);sim=restored;newMemoryBranch();running=false;return true;}
-  catch(java.io.IOException e){System.err.println(e);return false;}
+  if(savePath==null)return false;
+  try{restore(id);running=false;return true;}catch(java.io.IOException e){System.err.println(e);return false;}
  }
  synchronized String checkpoints(){
   if(savePath==null||!Files.isDirectory(history()))return "[]";
   try(var files=Files.list(history())){
-   return files.map(p->p.getFileName().toString()).filter(n->n.matches("[0-9]+-[a-f0-9-]{36}\\.bin")).map(n->n.substring(0,n.length()-4)).sorted().map(n->"\""+n+"\"").collect(java.util.stream.Collectors.joining(",","[","]"));
+   return files.map(p->p.getFileName().toString()).filter(n->Files.isRegularFile(history().resolve(n.replace(".bin",".memory")+"/settings.txt"))).filter(n->n.matches("[0-9]+-[a-f0-9-]{36}\\.bin")).map(n->n.substring(0,n.length()-4)).sorted().map(n->"\""+n+"\"").collect(java.util.stream.Collectors.joining(",","[","]"));
   }catch(java.io.IOException e){return "[]";}
  }
 
- synchronized void save(){if(savePath!=null)try{sim.save(savePath);}catch(java.io.IOException e){System.err.println("Checkpoint failed: "+e);}}
+ synchronized void save(){if(savePath!=null)try{checkpoint();}catch(java.io.IOException e){System.err.println("Checkpoint failed: "+e);}}
 
- synchronized void advance(){if(running)for(int i=0;i<speed;i++){var before=memory==null?null:sim.states();sim.tick();
+ synchronized void advance(){if(running)for(int i=0;i<speed&&running;i++){var before=memory==null?null:sim.states();sim.tick();
  if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
  if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
  synchronized String snapshot(){
