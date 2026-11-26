@@ -123,3 +123,7 @@ Worldの共通17ソースは固定コミットとblobハッシュで検証する
 ### 重大障害対策
 MIPは作業コピーで実行し成功後に切替。新規保存は incomplete マーカーで未完了状態を識別する。dnms.minFreeBytes（既定268435456）で空き容量を確認し、履歴を自動削除しない。world-id.backup から欠落したIDを復元し、不一致時は停止する。個体台帳は epoch/world UUID 別に保存する。
 今後の実装: 完全な原子性とロールバック、ディレクトリ同期、旧世代の検証、容量上限と保全方針、初期24人の権限移管、台帳の検証付き復元、Minecraft互換性、負荷・障害試験。今回のコードは実行未検証。
+
+
+## スマホPWAプレビュー
+Java 21 / Gradleで `gradle exportTerrain` を実行し、clientで `npm install && npm run build` を実行する。生成された client/dist をHTTPSの静的Webサーバーで配信する。Android ChromeまたはiPhone Safariのホーム画面追加機能を利用する。Service Workerは本番ビルドかつsecure contextのみ有効。初回オンライン読み込み後の静的プレビューキャッシュであり、完全オフライン動作、ライブNPC接続、スマホ実機でのインストールは未検証。管理APIや認証情報はキャッシュしない。SVGアイコンの対応は端末依存。
