@@ -82,8 +82,7 @@ public final class NaoSimulation implements DnmsWorldApi {
  @Override public long worldTick(){return ticks();}
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
  private Pos foodSite(Nao n){return new Pos(n.anchor.x()-2,1,n.anchor.z());}
- // DNMS-LEGACY: local goal policy; physical needs remain World responsibilities.
- private Goal goal(Nao n){if(n.health>0&&n.satiety<=12000&&n.food>0)return Goal.EAT;if(n.health>0&&n.food==0&&n.satiety<=18000&&ticks()>=n.nextHarvest)return Goal.FORAGE;if(n.health>0&&(n.sleeping||n.fatigue>=16000||(n.fatigue>=10000&&ticks()%24000>=12000&&ticks()%24000<22000)))return Goal.SLEEP;return n.built==8?Goal.REST:n.collected==8?Goal.BUILD:Goal.COLLECT;}
+ private Goal goal(Nao n){return Goal.valueOf(WorldLifePolicy.goal(n.health,n.satiety,n.food,ticks(),n.nextHarvest,n.sleeping,n.fatigue,n.built,n.collected).name());}
  private void observe(Nao n,Action action,boolean success){
   n.lastAction=action;n.lastActionTick=ticks();
   if(rewardEnabled&&(action==Action.COLLECT||action==Action.EXPLORE)){
