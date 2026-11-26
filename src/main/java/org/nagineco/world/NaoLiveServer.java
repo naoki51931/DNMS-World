@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 import java.util.UUID;
 import org.nagineco.doppel.core.DnmsWorldApi;
-public final class NaoLiveServer {
+public final class NaoLiveServer implements AutoCloseable {
  private NaoSimulation sim=new NaoSimulation();
  private boolean running=true;
  private int speed=1;
@@ -147,6 +147,9 @@ public final class NaoLiveServer {
   }catch(java.io.IOException e){return "[]";}
  }
 
+ @Override public synchronized void close() throws java.io.IOException {
+  if(saveLockChannel!=null){saveLockChannel.close();saveLockChannel=null;saveLock=null;}
+ }
  synchronized void save(){if(savePath!=null)try{checkpoint();}catch(java.io.IOException e){System.err.println("Checkpoint failed: "+e);}}
 
  synchronized void advance(){if(running)for(int i=0;i<speed&&running;i++){var before=memory==null?null:sim.states();sim.tick();
@@ -252,7 +255,7 @@ public final class NaoLiveServer {
    send(e,200,type,Files.readAllBytes(path));
   });
   var timer=Executors.newSingleThreadScheduledExecutor();timer.scheduleAtFixedRate(app::advance,0,50,TimeUnit.MILLISECONDS);
-  server.start();Runtime.getRuntime().addShutdownHook(new Thread(()->{timer.shutdownNow();server.stop(0);app.save();try{app.saveLock.release();app.saveLockChannel.close();}catch(java.io.IOException e){System.err.println(e);}}));
+  server.start();Runtime.getRuntime().addShutdownHook(new Thread(()->{timer.shutdownNow();server.stop(0);app.save();try{app.close();}catch(java.io.IOException e){System.err.println(e);}}));
   System.out.println("DNMS live: http://127.0.0.1:8080/replay.html?live=1");
  }
 }
