@@ -16,6 +16,8 @@ public final class NaoSimulation {
   PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
   Nao(int slot){this.slot=slot;anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
  }
+ private MemoryDecision memoryDecision=new MemoryDecision(List.of());
+ public void setMemoryDecision(MemoryDecision decision){memoryDecision=Objects.requireNonNull(decision);}
  private boolean rewardEnabled=false;
  public boolean rewardEnabled(){return rewardEnabled;}
  public void setRewardEnabled(boolean enabled){rewardEnabled=enabled;}
@@ -65,10 +67,13 @@ public final class NaoSimulation {
   n.travel+=adapter.movementStep(n.skill);
   if(n.travel<1)return;n.travel-=1;
   int dx=Integer.compare(target.x(),n.position.x()),dz=Integer.compare(target.z(),n.position.z());
-  var next=new Pos(n.position.x()+dx,1,n.position.z());
-  if(dx==0)next=new Pos(n.position.x(),1,n.position.z()+dz);
-  boolean success=world.block(next)==Block.AIR&&world.block(new Pos(next.x(),0,next.z()))!=Block.AIR;
-  if(success)n.position=next;observe(n,Action.EXPLORE,success);
+  var candidates=new ArrayList<Pos>();
+  if(dx!=0)candidates.add(new Pos(n.position.x()+dx,1,n.position.z()));
+  if(dz!=0)candidates.add(new Pos(n.position.x(),1,n.position.z()+dz));
+  candidates.removeIf(p->world.block(p)!=Block.AIR||world.block(new Pos(p.x(),0,p.z()))==Block.AIR);
+  candidates.sort(Comparator.comparingDouble((Pos p)->memoryDecision.score(p.x()>n.position.x()?"EAST":p.x()<n.position.x()?"WEST":p.z()>n.position.z()?"SOUTH":"NORTH")).reversed());
+  boolean success=!candidates.isEmpty();
+  if(success)n.position=candidates.get(0);observe(n,Action.EXPLORE,success);
  }
  public void tick(){
   for(var n:naos){
