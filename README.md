@@ -2,6 +2,71 @@
 
 Minecraft不要の独立型ブロック世界シミュレーター。既存DNMS Fabric 1.21.1版を維持し、共通AIを段階的に接続する。
 
+
+## インストール方法（Windows / Mac / Android / iPhone）
+
+公開予定URL： https://naoki51931.github.io/DNMS-World/
+
+GitHub Pagesの公開成功後に利用できます。PWA版は無料の静的3Dプレビューです。Minecraft、Java、Node.jsのインストールは一般利用者には不要です。ネイティブのEXE、DMG、APK、IPAは配布していません。
+
+| OS | 推奨ブラウザ | インストール先 |
+|---|---|---|
+| Windows 10 / 11 | Chrome / Edge | スタートメニュー等 |
+| macOS | Chrome / Safari（macOS 14以降） | アプリケーション / Dock |
+| Android | Chrome | ホーム画面 |
+| iPhone | Safari | ホーム画面 |
+
+### Windows
+1. ChromeまたはEdgeで公開URLを開く。
+2. アドレスバーのインストールアイコンを選ぶ。Chromeではメニューの「キャスト、保存、共有」→「ページをアプリとしてインストール」からも操作できる。
+3. Edgeではメニューの「アプリ」→「このサイトをアプリとしてインストール」を利用できる（バージョンにより位置は異なる）。
+4. インストールを確定し、追加されたDNMS Worldを起動する。
+
+### Mac
+1. Chromeで公開URLを開き、Windowsと同様にアプリとしてインストールする。
+2. Safariを使う場合はmacOS Sonoma 14以降で公開URLを開き、「ファイル」→「Dockに追加」を選ぶ。
+3. 名前をDNMS Worldとして追加し、Dockまたはアプリ一覧から起動する。
+
+### Android
+1. Chromeで公開URLを開く。
+2. 右上のメニュー（⋮）から「ホーム画面に追加」または「アプリをインストール」を選ぶ。
+3. インストールを確定し、ホーム画面のDNMS Worldを起動する。
+4. インストール項目がなくショートカット追加のみの場合は、ブラウザ起動になることがある。
+
+### iPhone
+1. Safariで公開URLを開く。
+2. 共有メニュー（四角から上向き矢印）を開く。
+3. 「ホーム画面に追加」を選ぶ。「Webアプリとして開く」が表示される場合は有効にする。
+4. 「追加」を押し、ホーム画面からDNMS Worldを起動する。
+
+### 操作方法
+- PC：W/A/S/Dで移動、Spaceでジャンプ、マウスで視点操作。
+- スマートフォン：画面の方向ボタンで移動、Jumpでジャンプ、タッチで視点操作。
+
+### Windows / Macで開発版をローカル起動
+Git、JDK 21、Gradle 8.10.2、Node.js 22を準備し、PowerShellまたはターミナルで実行する。
+
+```sh
+git clone https://github.com/naoki51931/DNMS-World.git
+cd DNMS-World
+gradle --no-daemon exportTerrain
+cd client
+npm install
+npm run build
+npm run dev -- --host 127.0.0.1
+```
+
+Viteが表示するURLを開く。開発サーバーではService Workerが無効なので、PWAの確認にはビルド後に `npx vite preview --host 127.0.0.1` を使用する。
+
+### 注意事項・トラブルシューティング
+- 初回はインターネット接続が必要。完全オフライン動作は保証しない。
+- WebGL対応ブラウザが必要。表示できない場合はブラウザの更新やGPU設定を確認する。
+- 404の場合はGitHub Pagesの公開状況を確認する。管理者は Settings → Pages → Source を GitHub Actions に設定し、DNMS World Pagesを実行する。
+- インストール項目の名称はOS・ブラウザのバージョンによって異なる。通常のブラウザ表示でも利用できる。
+- ライブNPC、記憶統合、世界巻き戻しなどのサーバー機能は静的Pages版だけでは利用できない。
+- 各OSでの実機インストールと公開URLの稼働は未検証。
+- 参考：[Chrome公式Webアプリ案内](https://support.google.com/chrome/answer/9658361?hl=ja)
+
 ## Roadmap
 1. Java 21 headless world API and deterministic tests
 2. Voxel terrain, collision, gathering and building
