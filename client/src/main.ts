@@ -60,7 +60,7 @@ async function start(){
  const panel=document.createElement('section');panel.setAttribute('aria-label','NPC管理');
  panel.style.cssText='position:fixed;top:max(72px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:min(290px,calc(100vw - 24px));max-height:calc(100dvh - 160px);overflow:auto;box-sizing:border-box;background:#172331;color:white;padding:12px;border:1px solid #506174;border-radius:12px;z-index:10;font:14px system-ui,sans-serif;box-shadow:0 4px 16px #0005';
  const header=document.createElement('div');header.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px';
- const heading=document.createElement('strong');heading.textContent='NPC管理 · Non-Server';header.appendChild(heading);panel.appendChild(header);
+ const heading=document.createElement('strong');heading.textContent='NPC管理 · Non-Server 体験版';header.appendChild(heading);panel.appendChild(header);
  const content=document.createElement('div');content.style.cssText='display:grid;gap:8px';panel.appendChild(content);
  const button=(parent:HTMLElement,label:string,fn:()=>void)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.style.cssText='min-height:44px;padding:6px 10px;border:1px solid #66798a;border-radius:7px;background:#30465a;color:white;font:inherit;cursor:pointer';b.onclick=fn;parent.appendChild(b);return b;};
  const toggle=button(header,'閉じる',()=>{content.hidden=!content.hidden;content.style.display=content.hidden?'none':'grid';toggle.textContent=content.hidden?'開く':'閉じる';toggle.setAttribute('aria-expanded',String(!content.hidden));});toggle.setAttribute('aria-expanded','true');
@@ -90,7 +90,7 @@ async function start(){
  addEventListener('pagehide',save);document.addEventListener('visibilitychange',()=>{if(document.hidden)save();});
 
  const clock=new THREE.Clock();
- status.textContent='DNMS World | '+blocks.length+' blocks | WASD / 矢印ボタン・Spaceでジャンプ';
+ status.textContent='DNMS World 体験版 | '+blocks.length+' blocks | WASD / 矢印ボタン・Spaceでジャンプ';
  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
  renderer.setAnimationLoop(()=>{const dt=clock.getDelta(); advanceLocal(dt); const forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();const right=new THREE.Vector3(-forward.z,0,forward.x);const move=forward.multiplyScalar(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))).addScaledVector(right,Number(keys.has('KeyD'))-Number(keys.has('KeyA'))).normalize().multiplyScalar(4);step(body,solid,move.x,move.z,keys.has('Space'),dt);avatar.position.set(body.x,body.y+.9,body.z);controls.update();renderer.render(scene,camera)});
 }
