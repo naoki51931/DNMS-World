@@ -8,7 +8,7 @@ public final class NaoSimulation {
  public record State(int slot,Pos position,Goal goal,int collected,int built,long attempts){}
  private static final class Nao {
   final int slot; final Pos anchor; Pos position; int collected,built; long attempts; double travel;
-  final PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
+  PhysicalSkillSync.Skill skill=new PhysicalSkillSync.Skill(0,0,0,0,0,0);
   Nao(int slot){this.slot=slot;anchor=new Pos((slot%16)*12+4,1,(slot/16)*12+4);position=anchor;}
  }
  private final MemoryWorld world=new MemoryWorld();
@@ -83,4 +83,27 @@ public final class NaoSimulation {
  public long ticks(){return world.tick();}
  public int inventory(int slot){return work.count("nao-"+slot,Block.LOG);}
  public Block block(Pos p){return world.block(p);}
+ public void save(java.nio.file.Path path)throws java.io.IOException{
+  path=path.toAbsolutePath();java.nio.file.Files.createDirectories(path.getParent());
+  var tmp=java.nio.file.Files.createTempFile(path.getParent(),"dnms-",".tmp");
+  try{
+   try(var out=new java.io.DataOutputStream(new java.io.BufferedOutputStream(java.nio.file.Files.newOutputStream(tmp)))){
+    out.writeUTF("DNMS-WORLD-1");out.writeInt(naos.size());world.write(out);work.write(out);
+    for(var n:naos){out.writeInt(n.position.x());out.writeInt(n.position.y());out.writeInt(n.position.z());out.writeInt(n.collected);out.writeInt(n.built);out.writeLong(n.attempts);out.writeDouble(n.travel);
+     var k=n.skill;for(double v:new double[]{k.technique(),k.coordination(),k.proficiency(),k.strength(),k.agility(),k.endurance()})out.writeDouble(v);}
+   }
+   java.nio.file.Files.move(tmp,path,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+  }finally{java.nio.file.Files.deleteIfExists(tmp);}
+ }
+ public static NaoSimulation load(java.nio.file.Path path)throws java.io.IOException{
+  try(var in=new java.io.DataInputStream(new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(path)))){
+   if(!in.readUTF().equals("DNMS-WORLD-1"))throw new java.io.IOException("Unknown checkpoint format");
+   int count=in.readInt();if(count<1||count>256)throw new java.io.IOException("Invalid population");
+   var sim=new NaoSimulation(count);sim.world.read(in);sim.work.read(in);
+   for(var n:sim.naos){n.position=new Pos(in.readInt(),in.readInt(),in.readInt());n.collected=in.readInt();n.built=in.readInt();n.attempts=in.readLong();n.travel=in.readDouble();
+    if(n.collected<0||n.collected>8||n.built<0||n.built>n.collected||n.attempts<0||!Double.isFinite(n.travel)||n.travel<0||n.travel>=1)throw new java.io.IOException("Invalid NPC state");
+    n.skill=new PhysicalSkillSync.Skill(in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble(),in.readDouble());}
+   if(in.read()!=-1)throw new java.io.IOException("Trailing checkpoint data");return sim;
+  }catch(IllegalArgumentException e){throw new java.io.IOException("Invalid checkpoint",e);}
+ }
 }
