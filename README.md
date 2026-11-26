@@ -32,6 +32,10 @@ Open the URL printed by Vite. This preview renders Java-generated terrain; no NP
 
 DNMS本体を分身生成・人格・永続ID・記憶統合・技能学習・人間関係の管理元とする。DNMS-Worldは地形、描画、衝突、身体状態、行動実行、世界スナップショットを担当する。現在の独立生成・ローカル記憶管理は接続前の暫定テスト用であり、DNMSからの生成指示や個体転送は未実装。共通AIの直接再利用は重複実装ではないため維持する。
 
+## 共通World APIの進捗
+
+DNMS本体の DnmsWorldApi を再利用し、NaoSimulation が生成・一覧・時刻取得を実装。V8保存形式でUUIDを永続化し、旧V1〜V7にはスロット由来の暫定UUIDを割り当てる。生成座標は現状、次の区画の基点に限定。WorldApiTest を追加したがCI未確認。Minecraft側Adapter、外部接続、認証、記憶転送は未実装。旧UUIDはDNMS発行IDではなく、世界間の同一性を保証しない。
+
 ## 今後の実装
 
 以下は未完了の開発項目。実装済みとCI・実動作検証済みを区別する。
