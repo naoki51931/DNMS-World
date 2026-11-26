@@ -69,7 +69,7 @@ public final class NaoSimulation {
   double caution=rewardEnabled?Math.max(0,-rewardPreference(n.slot,Action.EXPLORE))/10:0;
   var next=PathFinder.next(world,n.position,target,(from,to)->{
    String direction=to.x()>from.x()?"EAST":to.x()<from.x()?"WEST":to.z()>from.z()?"SOUTH":"NORTH";
-   return Math.max(0,-memoryDecision.score(direction))*(1+caution);
+   return (Math.max(0,-memoryDecision.score(direction))+memoryDecision.hazard(to))*(1+caution);
   });
   if(next.isPresent())n.position=next.get();
   observe(n,Action.EXPLORE,next.isPresent());
