@@ -25,7 +25,6 @@ public final class NaoSimulation {
    var n=new Nao(naos.size());naos.add(n);
    for(int x=-2;x<=5;x++)for(int z=-2;z<=2;z++)world.compareAndSet(new Pos(n.anchor.x()+x,0,n.anchor.z()+z),Block.AIR,Block.DIRT);
    for(int j=0;j<8;j++)world.compareAndSet(source(n,j),Block.AIR,Block.LOG);
-   growth.add(new Growth(world.tick(),naos.size()));
    return true;
  }
  private Pos source(Nao n,int j){return new Pos(n.anchor.x()+4+j/4,1,n.anchor.z()-2+j%4);}
@@ -52,34 +51,6 @@ public final class NaoSimulation {
   world.advance();
  }
  public List<State> states(){return naos.stream().map(n->new State(n.slot,n.position,goal(n),n.collected,n.built,n.attempts)).toList();}
- // Version 1 stores deterministic fixture progress; replay reconstructs world and inventories.
- public record Growth(long tick,int count){}
- private final List<Growth> growth=new ArrayList<>();
- public void save(java.nio.file.Path path)throws java.io.IOException{
-  var target=path.toAbsolutePath();java.nio.file.Files.createDirectories(target.getParent());
-  var temp=java.nio.file.Files.createTempFile(target.getParent(),"dnms-",".tmp");
-  try{
-   try(var out=new java.io.DataOutputStream(java.nio.file.Files.newOutputStream(temp))){
-    out.writeInt(0x444e4d53);out.writeInt(1);out.writeLong(ticks());out.writeInt(growth.size());
-    for(var g:growth){out.writeLong(g.tick());out.writeInt(g.count());}
-   }
-   java.nio.file.Files.move(temp,target,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-  }finally{java.nio.file.Files.deleteIfExists(temp);}
- }
- public static NaoSimulation load(java.nio.file.Path path)throws java.io.IOException{
-  try(var in=new java.io.DataInputStream(java.nio.file.Files.newInputStream(path))){
-   if(in.readInt()!=0x444e4d53||in.readInt()!=1)throw new java.io.IOException("Invalid checkpoint version");
-   long tick=in.readLong();int count=in.readInt();
-   if(tick<0||tick>100000000L||count<1||count>256)throw new java.io.IOException("Invalid checkpoint bounds");
-   var events=new ArrayList<Growth>();long previous=0;
-   for(int i=0;i<count;i++){long t=in.readLong();int c=in.readInt();if(t<previous||t>tick||c!=i+1||(i==0&&t!=0))throw new java.io.IOException("Invalid growth event");events.add(new Growth(t,c));previous=t;}
-   if(in.read()!=-1)throw new java.io.IOException("Trailing checkpoint data");
-   var sim=new NaoSimulation(1);
-   for(int i=1;i<count;i++){var g=events.get(i);while(sim.ticks()<g.tick())sim.tick();sim.addNao();}
-   while(sim.ticks()<tick)sim.tick();
-   return sim;
-  }
- }
  public long ticks(){return world.tick();}
  public int inventory(int slot){return work.count("nao-"+slot,Block.LOG);}
  public Block block(Pos p){return world.block(p);}
