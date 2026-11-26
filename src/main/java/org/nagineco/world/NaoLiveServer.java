@@ -57,13 +57,10 @@ public final class NaoLiveServer {
   Files.createDirectories(to);
   try(var files=Files.list(from)){for(var p:files.toList())if(Files.isRegularFile(p)&&p.getFileName().toString().endsWith(".md"))Files.copy(p,to.resolve(p.getFileName()));}
  }
- private void publish(String id)throws java.io.IOException{
-  var tmp=Files.createTempFile(pointer().getParent(),"generation-",".tmp");
-  try{Files.writeString(tmp,id);Files.move(tmp,pointer(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}finally{Files.deleteIfExists(tmp);}
- }
+ private void publish(String id)throws java.io.IOException{org.nagineco.doppel.core.CheckpointPolicy.publish(pointer(),id);}
  synchronized void checkpoint()throws java.io.IOException{
   if(savePath==null)return;
-  String id=sim.ticks()+"-"+java.util.UUID.randomUUID();
+  String id=org.nagineco.doppel.core.CheckpointPolicy.generation(sim.ticks());
   var dir=history().resolve(id+".memory");
   copyMemory(memoryDir,dir);
   Files.writeString(dir.resolve("settings.txt"),mipEnabled+"\n"+mipTick+"\n"+mipDay+"\n"+skillMode.name()+"\n"+skillSource+"\n");
@@ -71,7 +68,7 @@ public final class NaoLiveServer {
   sim.save(savePath);publish(id);
  }
  private void restore(String id)throws java.io.IOException{
-  if(!id.matches("[0-9]+-[a-f0-9-]{36}"))throw new java.io.IOException("Invalid generation");
+  if(!org.nagineco.doppel.core.CheckpointPolicy.valid(id))throw new java.io.IOException("Invalid generation");
   var restored=NaoSimulation.load(history().resolve(id+".bin"));
   var source=history().resolve(id+".memory");
   var settings=Files.readAllLines(source.resolve("settings.txt"));
@@ -105,7 +102,7 @@ public final class NaoLiveServer {
 
  synchronized void advance(){if(running)for(int i=0;i<speed&&running;i++){var before=memory==null?null:sim.states();sim.tick();
  if(memory!=null)try{var after=sim.states();for(int j=0;j<after.size();j++)memory.observe(sim.ticks(),before.get(j),after.get(j));integrateDue();memoryError="";}catch(java.io.IOException e){memoryError=e.toString();running=false;System.err.println(e);}
- if(sim.ticks()%1200==0)try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
+ if(org.nagineco.doppel.core.CheckpointPolicy.due(sim.ticks()))try{checkpoint();}catch(java.io.IOException e){System.err.println(e);}}}
  synchronized String searchMemory(String query)throws java.io.IOException{
   if(query.length()>256)throw new IllegalArgumentException("query too long");
   var out=new StringBuilder("[");
