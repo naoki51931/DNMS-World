@@ -20,4 +20,15 @@ public final class WorkSession {
   if(!world.compareAndSet(target,Block.AIR,b))return false;
   inv.put(b,count(actor,b)-1);protectedBlocks.add(target);return true;
  }
+ synchronized void write(java.io.DataOutput out)throws java.io.IOException {
+  out.writeInt(inventories.size());
+  for(var e:inventories.entrySet()){out.writeUTF(e.getKey());for(var b:Block.values())out.writeInt(e.getValue().getOrDefault(b,0));}
+  out.writeInt(protectedBlocks.size());for(var p:protectedBlocks){out.writeInt(p.x());out.writeInt(p.y());out.writeInt(p.z());}
+ }
+ synchronized void read(java.io.DataInput in)throws java.io.IOException {
+  inventories.clear();protectedBlocks.clear();int n=in.readInt();if(n<0||n>256)throw new java.io.IOException("Invalid inventories");
+  for(int i=0;i<n;i++){var inv=inventory(in.readUTF());for(var b:Block.values()){int c=in.readInt();if(c<0)throw new java.io.IOException("Invalid count");inv.put(b,c);}}
+  n=in.readInt();if(n<0||n>1000000)throw new java.io.IOException("Invalid protection");
+  for(int i=0;i<n;i++)protectedBlocks.add(new Pos(in.readInt(),in.readInt(),in.readInt()));
+ }
 }
